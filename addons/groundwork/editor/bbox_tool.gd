@@ -59,6 +59,8 @@ func is_dragging() -> bool:
 
 ## Starts a new selection at a normalized point.
 func begin_new(nx: float, ny: float) -> void:
+	nx = clampf(nx, 0.0, 1.0)
+	ny = clampf(ny, 0.0, 1.0)
 	x0 = nx
 	x1 = nx
 	y0 = ny
@@ -129,6 +131,9 @@ func hit_test(pos: Vector2, to_screen: Callable) -> Handle:
 	if not has_selection():
 		return Handle.NONE
 	var r := screen_rect(to_screen)
+	# Too small on screen to tell the handles apart: let the press pan instead.
+	if r.size.x < HANDLE_RADIUS * 3.0 or r.size.y < HANDLE_RADIUS * 3.0:
+		return Handle.NONE
 	var near_l := absf(pos.x - r.position.x) <= HANDLE_RADIUS
 	var near_r := absf(pos.x - r.end.x) <= HANDLE_RADIUS
 	var near_t := absf(pos.y - r.position.y) <= HANDLE_RADIUS

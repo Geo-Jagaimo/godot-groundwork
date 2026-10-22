@@ -36,6 +36,10 @@ var _unavailable := {}
 var _wanted: Array[Vector3i] = []
 var _wanted_keys := {}
 var _drag := Drag.NONE
+## Button that started the current drag; other buttons do not end it.
+var _drag_button := MOUSE_BUTTON_NONE
+## Whether the current selection drag creates a new selection (vs. editing one).
+var _new_selection := false
 
 
 func _init() -> void:
@@ -293,28 +297,28 @@ func _on_mouse_button(mb: InputEventMouseButton) -> void:
 				_zoom_at(mb.position, step if mb.button_index == MOUSE_BUTTON_WHEEL_UP else -step)
 			accept_event()
 		MOUSE_BUTTON_LEFT:
-			if mb.pressed:
+			if mb.pressed and _drag == Drag.NONE:
 				if mb.double_click and not mb.shift_pressed:
 					_zoom_at(mb.position, 1.0)
 				elif mb.shift_pressed:
 					var p := screen_to_norm(mb.position)
 					tool.begin_new(p[0], p[1])
-					_drag = Drag.SELECTION
+					_start_drag(Drag.SELECTION, mb.button_index, true)
 				else:
 					var handle := tool.hit_test(mb.position, norm_to_screen)
 					if handle != BBoxTool.Handle.NONE:
 						var p := screen_to_norm(mb.position)
 						tool.begin_drag(handle, p[0], p[1])
-						_drag = Drag.SELECTION
+						_start_drag(Drag.SELECTION, mb.button_index, false)
 					else:
-						_drag = Drag.PAN
-			else:
+						_start_drag(Drag.PAN, mb.button_index, false)
+			elif not mb.pressed and mb.button_index == _drag_button:
 				_end_drag()
 			accept_event()
 		MOUSE_BUTTON_MIDDLE, MOUSE_BUTTON_RIGHT:
-			if mb.pressed:
-				_drag = Drag.PAN
-			else:
+			if mb.pressed and _drag == Drag.NONE:
+				_start_drag(Drag.PAN, mb.button_index, false)
+			elif not mb.pressed and mb.button_index == _drag_button:
 				_end_drag()
 			accept_event()
 
@@ -333,14 +337,22 @@ func _on_mouse_motion(mm: InputEventMouseMotion) -> void:
 			)
 
 
+func _start_drag(kind: Drag, button: MouseButton, new_selection: bool) -> void:
+	_drag = kind
+	_drag_button = button
+	_new_selection = new_selection
+
+
 func _end_drag() -> void:
 	if _drag == Drag.SELECTION and tool.end_drag():
+		# A Shift+click without a real drag clears the selection; edits never do.
 		var r := tool.screen_rect(norm_to_screen)
-		if r.size.x < 4.0 or r.size.y < 4.0:
+		if _new_selection and (r.size.x < 4.0 or r.size.y < 4.0):
 			tool.clear()
 		selection_changed.emit(tool.get_bbox())
 		queue_redraw()
 	_drag = Drag.NONE
+	_drag_button = MOUSE_BUTTON_NONE
 
 
 func _pan_by(screen_delta: Vector2) -> void:
