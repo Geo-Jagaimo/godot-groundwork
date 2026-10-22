@@ -2,7 +2,8 @@ extends SceneTree
 ## Renders a generated scene to a PNG (needs a window; not --headless).
 ##
 ## godot --path . -s res://tools/render_preview.gd -- --scene=res://geo/fuji/fuji.tscn \
-##     --out=/tmp/preview.png [--yaw=30] [--pitch=-25] [--distance=1.2]
+##     --out=/tmp/preview.png [--yaw=30] [--pitch=-25] [--distance=1.2 | --meters=300]
+##     [--at=lat,lon]
 
 
 func _init() -> void:
@@ -41,9 +42,14 @@ func _run() -> void:
 	var extent := hf.get_extent()
 	var center := hf.origin + extent / 2.0
 	var target := Vector3(center.x, hf.sample(center), center.y)
+	if args.has("at"):
+		var ll: PackedStringArray = args["at"].split(",")
+		target = scene.geo_to_local(ll[0].to_float(), ll[1].to_float())
 	var yaw := deg_to_rad(float(args.get("yaw", "30")))
 	var pitch := deg_to_rad(float(args.get("pitch", "-28")))
 	var dist := maxf(extent.x, extent.y) * float(args.get("distance", "0.9"))
+	if args.has("meters"):
+		dist = float(args["meters"])
 	var cam := Camera3D.new()
 	cam.far = dist * 4.0
 	cam.near = 1.0

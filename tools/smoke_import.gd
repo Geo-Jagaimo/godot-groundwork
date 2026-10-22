@@ -3,7 +3,8 @@ extends SceneTree
 ##
 ## godot --headless --path . -s res://tools/smoke_import.gd -- \
 ##     --lat=35.3606 --lon=138.7274 --size=3000 --elevation=gsi_dem10b \
-##     --imagery=gsi_seamlessphoto --name=fuji --resolution=10
+##     --imagery=gsi_seamlessphoto --name=fuji --resolution=10 \
+##     [--buildings] [--roads] [--osm-file=<saved overpass.json>]
 
 
 func _init() -> void:
@@ -29,6 +30,14 @@ func _run() -> void:
 	req.target_resolution_m = float(args.get("resolution", "10"))
 	req.imagery_zoom_offset = int(args.get("zoom-offset", "2"))
 	req.mesh_decimation = int(args.get("decimation", "1"))
+	req.include_buildings = args.has("buildings")
+	req.include_roads = args.has("roads")
+	if args.has("osm-file"):
+		# A saved Overpass response instead of a live query.
+		var local := (GwProviderRegistry.find("overpass_main").duplicate()) as GwTileProvider
+		local.url_template = args["osm-file"]
+		req.osm_provider = local
+		req.osm_use_fallbacks = false
 	req.overwrite = true
 
 	var plan := GwImportPlan.from_request(req)
@@ -42,7 +51,7 @@ func _run() -> void:
 	var last := {"stage": ""}
 	builder.progress.connect(
 		func(stage: String, done: int, total: int) -> void:
-			if stage != last["stage"] or done == total:
+			if stage != last["stage"] or (done == total and total > 0):
 				print("  %s %d/%d" % [GwWorldBuilder.stage_label(stage), done, total])
 				last["stage"] = stage
 	)
