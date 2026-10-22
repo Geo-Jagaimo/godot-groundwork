@@ -1,12 +1,17 @@
 # Groundwork for Godot
 
 Pick an area on a map inside the Godot editor and get a **walkable scene of the real
-world** — terrain mesh, collision and aerial imagery — built only from standard Godot
-nodes. Pure GDScript: no GDExtension, no GDAL, no other addons.
+world** — terrain mesh, collision, aerial imagery and OpenStreetMap buildings and roads —
+built only from standard Godot nodes. Pure GDScript: no GDExtension, no GDAL, no other
+addons.
 
 ![Mt. Fuji summit imported with Groundwork for Godot](docs/preview.png)
 
 <sub>Mt. Fuji summit, 3 km × 3 km. 出典：国土地理院「地理院タイル（標高タイル DEM10B、全国最新写真（シームレス））」を加工して作成</sub>
+
+![Shibuya with OpenStreetMap buildings and roads](docs/preview_osm.png)
+
+<sub>Shibuya station area. Buildings and roads © OpenStreetMap contributors (ODbL). 出典：国土地理院「地理院タイル（標高タイル DEM5A、全国最新写真（シームレス））」を加工して作成</sub>
 
 > Groundwork for Godot is an unofficial community project and is not affiliated with
 > or endorsed by the Godot Foundation.
@@ -16,7 +21,8 @@ nodes. Pure GDScript: no GDExtension, no GDAL, no other addons.
 1. Copy `addons/groundwork/` into your project and enable **Groundwork for Godot** in
    *Project → Project Settings → Plugins*. A **Geo** dock appears on the right.
 2. Search for a place (or type `lat, lon`), then **Shift+drag** on the map to select an
-   area. Choose an elevation provider (and imagery, if available for the area).
+   area. Choose an elevation provider (and imagery, if available for the area), and tick
+   **Buildings** / **Roads** for OpenStreetMap data.
 3. Press **Import**, then **Open Scene** — or **Add to Current Scene** and drop a
    character on it.
 
@@ -26,13 +32,18 @@ Requires **Godot 4.4 or later**.
 
 ```
 res://geo/<name>/
-├── <name>.tscn            GwSceneRoot (Node3D) → Terrain → Chunk_XXX_YYY (MeshInstance3D)
-│                                                   └── StaticBody3D → CollisionShape3D (HeightMapShape3D)
+├── <name>.tscn            GwSceneRoot (Node3D)
+│                            ├── Terrain → Chunk_XXX_YYY (MeshInstance3D)
+│                            │             └── StaticBody3D → CollisionShape3D (HeightMapShape3D)
+│                            ├── Buildings → Chunk_XXX_YYY (MeshInstance3D) → … (ConcavePolygonShape3D)
+│                            └── Roads → Residential, Primary, … (MeshInstance3D per road class)
 ├── georef.tres            GwGeoReference: origin, scale, attribution
 ├── heightfield.res        GwHeightfield: the full elevation grid
 ├── import_request.tres    every setting, to re-import the same area
 ├── ATTRIBUTION.md         who to credit
-└── terrain/               chunk_XXX_YYY.mesh / .png / _collision.res
+├── terrain/               chunk_XXX_YYY.mesh / .png / _collision.res
+├── buildings/             chunk_XXX_YYY.mesh / _collision.res, building_material.tres
+└── roads/                 <class>.mesh, <class>_material.tres
 ```
 
 - Chunks (128 cells by default) share their border vertices, so there are no seams.
@@ -54,6 +65,28 @@ var lat_lon := world.local_to_geo($Player.position)  # PackedFloat64Array [lat, 
 var h := world.sample_elevation(Vector2(pos.x, pos.z))
 ```
 
+## OpenStreetMap buildings and roads
+
+Buildings and roads come from one [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API)
+query per import (areas up to 25 km²), cached for 7 days in `user://groundwork_cache/overpass/`.
+
+- **Buildings** are extruded with flat roofs. Height comes from `height`, else
+  `building:levels` × 3 m, else 6 m (both adjustable). Walls start 0.5 m below the lowest
+  ground point so they never float on slopes. Buildings are merged per terrain chunk and
+  get `ConcavePolygonShape3D` collision.
+- **Roads** are ribbons draped over the terrain, with widths per `highway=*` type
+  (`GwImportRequest.road_widths` overrides them) and one mesh and material per class.
+  They have no collision of their own; you walk on the terrain beneath.
+- Materials are saved as `building_material.tres` and `<class>_material.tres`; edit them
+  freely — a re-import keeps your edited materials.
+- Current limits: flat roofs only; holes in multipolygon buildings are ignored; tunnels
+  and underground ways are skipped; bridges follow the terrain; crossings simply overlap.
+
+The public Overpass servers are run by volunteers and are often busy. The dock tries
+overpass-api.de and then a mirror, and a failed download only skips buildings and roads.
+For heavy or commercial use, point a `GwTileProvider` (kind *Vector*) at your own or a
+paid Overpass server and save it in `res://groundwork_providers/`.
+
 ## Providers
 
 | Provider | Kind | Coverage | Best resolution | Notes |
@@ -63,6 +96,7 @@ var h := world.sample_elevation(Vector2(pos.x, pos.z))
 | GSI DEM10B | elevation | Japan | z14 (10 m) | |
 | GSI seamless aerial photo | imagery | Japan | z18 | |
 | OpenStreetMap, GSI pale map | basemap | — | — | Dock background only, never baked into imports |
+| Overpass API (overpass-api.de, private.coffee mirror) | buildings, roads | global | — | OpenStreetMap data, ODbL |
 
 A global imagery preset is not included yet: we only ship sources whose terms clearly
 allow embedding in games. You can add your own provider by saving a `GwTileProvider`
@@ -77,6 +111,11 @@ text to `ATTRIBUTION.md` and `GwGeoReference.attribution`, and adds an on-screen
 If you remove the label, put the attribution in your game's credits. Check each
 provider's terms (linked in `ATTRIBUTION.md`) before commercial use.
 
+Buildings and roads are a *Produced Work* of OpenStreetMap data: credit
+"© OpenStreetMap contributors" and say the data is available under the
+[ODbL](https://www.openstreetmap.org/copyright), for example on a splash screen or in the
+credits.
+
 ## Scripting
 
 The dock is a thin UI over the core API, which also works from your own tool scripts:
@@ -89,6 +128,8 @@ req.output_dir = "res://geo/"
 req.elevation_provider = GwProviderRegistry.find("terrarium_aws")
 req.imagery_provider = GwProviderRegistry.find("gsi_seamlessphoto")
 req.target_resolution_m = 10.0
+req.include_buildings = true
+req.include_roads = true
 
 var builder := GwWorldBuilder.new()
 builder.progress.connect(func(stage, done, total): print(stage, " ", done, "/", total))
@@ -116,9 +157,8 @@ its size and can clear it.
 
 ## Roadmap
 
-- **v0.2**: OpenStreetMap buildings (extruded) and roads, with collision.
-- **v0.3+**: distance LOD, water and land use, GeoTIFF / GeoJSON import, export
-  adapters (Terrain3D, glTF), runtime loading.
+- **v0.3+**: distance LOD, holes in buildings and pitched roofs, water and land use,
+  GeoTIFF / GeoJSON import, export adapters (Terrain3D, glTF), runtime loading.
 
 ## Development
 

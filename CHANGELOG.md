@@ -6,6 +6,25 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - unreleased
+
+OpenStreetMap buildings and roads.
+
+### Added
+
+- **Buildings**: OSM footprints (ways and multipolygon outer rings) extruded with flat
+  roofs; height from `height`, `building:levels` × level height, or a default. Merged per
+  terrain chunk with `ConcavePolygonShape3D` collision.
+- **Roads**: `highway=*` centrelines resampled every 5 m and draped over the terrain as
+  ribbons, with a width table per type and one mesh and material per road class.
+- **Overpass client**: one query per import, 7-day disk cache, fallback from
+  overpass-api.de to the private.coffee mirror, 30 s back-off after rate limiting.
+  Download failures only skip buildings and roads.
+- Geo dock: Buildings / Roads options, Overpass server and default building height;
+  25 km² area limit for OSM data.
+- Materials for buildings and road classes saved as `.tres` and kept on re-import.
+- OpenStreetMap / ODbL attribution in `ATTRIBUTION.md` and the scene label.
+
 ## [0.1.0] - unreleased
 
 First version: real-world terrain from tile services, generated in the editor.
