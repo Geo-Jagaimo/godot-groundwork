@@ -15,6 +15,12 @@ extends Resource
 ## Use every Nth sample (1, 2 or 4) to lighten meshes, e.g. for mobile.
 @export_range(1, 4) var mesh_decimation := 1
 @export_range(16, 512) var chunk_size := 128
+## Coarser meshes per chunk, shown with distance (0 = off). Each level halves the
+## detail of the one before.
+@export_range(0, 3) var lod_levels := 2
+## Distance, in chunk widths, at which the first coarser level takes over; each
+## further level starts twice as far.
+@export_range(0.5, 10.0, 0.1) var lod_distance := 1.5
 
 @export_group("Imagery")
 ## Optional. Without imagery the terrain gets an elevation colour gradient.
@@ -32,6 +38,8 @@ extends Resource
 @export var include_buildings := false
 ## Road ribbons draped over the terrain (no collision of their own).
 @export var include_roads := false
+## Lakes, ponds and river areas, plus rivers and canals as lines (no collision).
+@export var include_water := false
 ## Overpass endpoint (a VECTOR provider). Null uses the first preset.
 @export var osm_provider: GwTileProvider
 ## Try the other Overpass presets when the endpoint fails.
@@ -48,7 +56,7 @@ func get_output_folder() -> String:
 
 
 func includes_osm() -> bool:
-	return include_buildings or include_roads
+	return include_buildings or include_roads or include_water
 
 
 func get_scene_path() -> String:

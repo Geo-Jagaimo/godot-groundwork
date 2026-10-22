@@ -25,6 +25,8 @@ var width_m := 0.0
 var height_m := 0.0
 
 var elevation_zoom := 0
+## Pixel size of the elevation tiles (from the provider).
+var elevation_tile_size := GwTileMath.TILE_SIZE
 ## Elevation tiles as Rect2i(x_min, y_min, cols, rows).
 var elevation_tiles := Rect2i()
 ## Heightfield samples per side after decimation.
@@ -106,7 +108,9 @@ func bbox_samples() -> Rect2i:
 
 
 func create_compositor() -> GwImageryCompositor:
-	return GwImageryCompositor.create(elevation_tiles.position, imagery_zoom_scale(), decimation)
+	return GwImageryCompositor.create(
+		elevation_tiles.position, imagery_zoom_scale(), decimation, elevation_tile_size
+	)
 
 
 ## Human-readable one-line summary for the editor.
@@ -123,6 +127,8 @@ func describe() -> String:
 			what.append("buildings")
 		if request.include_roads:
 			what.append("roads")
+		if request.include_water:
+			what.append("water")
 		parts.append("OSM %s" % " + ".join(what))
 	parts.append("%d chunks" % chunk_count())
 	parts.append("%s triangles" % _si(triangle_count))
@@ -180,17 +186,19 @@ func _compute(api_keys: Dictionary) -> void:
 
 	var ep := req.elevation_provider
 	_check_provider(ep, api_keys)
+	elevation_tile_size = maxi(ep.tile_size, 1)
+	var ts := elevation_tile_size
 	elevation_zoom = GwTileMath.resolution_to_zoom(
-		req.target_resolution_m, origin_lat, ep.min_zoom, ep.max_zoom
+		req.target_resolution_m, origin_lat, ep.min_zoom, ep.max_zoom, ts
 	)
 	elevation_tiles = GwTileMath.tile_range(bbox, elevation_zoom)
 	decimation = clampi(req.mesh_decimation, 1, 4)
-	var raw_w := elevation_tiles.size.x * GwTileMath.TILE_SIZE
-	var raw_h := elevation_tiles.size.y * GwTileMath.TILE_SIZE
+	var raw_w := elevation_tiles.size.x * ts
+	var raw_h := elevation_tiles.size.y * ts
 	# Same sizes as GwHeightfield.decimated().
 	grid_width = ceili((raw_w - 1) / float(decimation)) + 1
 	grid_height = ceili((raw_h - 1) / float(decimation)) + 1
-	var raw_cell := GwTileMath.mercator_pixel_size(elevation_zoom) * scale_k
+	var raw_cell := GwTileMath.mercator_pixel_size(elevation_zoom, ts) * scale_k
 	cell_size_m = raw_cell * decimation
 	if absf(raw_cell - req.target_resolution_m) / req.target_resolution_m > 0.6:
 		warnings.append(
@@ -203,10 +211,10 @@ func _compute(api_keys: Dictionary) -> void:
 		errors.append("Too many samples (%d x %d). Use a coarser resolution." % [raw_w, raw_h])
 
 	# Local position of sample (0, 0): pixel centre of the first tile's corner.
-	var origin_px_x := GwTileMath.lon_to_tile_x(origin_lon, elevation_zoom) * GwTileMath.TILE_SIZE
-	var origin_px_y := GwTileMath.lat_to_tile_y(origin_lat, elevation_zoom) * GwTileMath.TILE_SIZE
-	var first_px_x := elevation_tiles.position.x * GwTileMath.TILE_SIZE + 0.5
-	var first_px_y := elevation_tiles.position.y * GwTileMath.TILE_SIZE + 0.5
+	var origin_px_x := GwTileMath.lon_to_tile_x(origin_lon, elevation_zoom) * ts
+	var origin_px_y := GwTileMath.lat_to_tile_y(origin_lat, elevation_zoom) * ts
+	var first_px_x := elevation_tiles.position.x * ts + 0.5
+	var first_px_y := elevation_tiles.position.y * ts + 0.5
 	grid_origin = Vector2(
 		(first_px_x - origin_px_x) * raw_cell, (first_px_y - origin_px_y) * raw_cell
 	)
@@ -257,12 +265,12 @@ func _check_osm() -> void:
 	var area := request.bbox.area_km2()
 	if area > MAX_OSM_AREA_KM2:
 		var limit := (
-			"Buildings and roads are limited to %.0f km² (selected: %.1f km²)."
+			"OpenStreetMap data is limited to %.0f km² (selected: %.1f km²)."
 			% [MAX_OSM_AREA_KM2, area]
 		)
-		errors.append(limit + " Select a smaller area or turn them off.")
+		errors.append(limit + " Select a smaller area or turn off buildings, roads and water.")
 	if osm_endpoints().is_empty():
-		errors.append("No Overpass endpoint available for buildings and roads.")
+		errors.append("No Overpass endpoint available for OpenStreetMap data.")
 
 
 func _check_provider(provider: GwTileProvider, api_keys: Dictionary) -> void:

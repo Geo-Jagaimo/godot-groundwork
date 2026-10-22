@@ -91,6 +91,14 @@ static func _write_overpass_fixture(georef: GwGeoReference) -> void:
 	closed.append(ring[0])
 	var peak := _peak(georef)
 	var road := PackedVector2Array([peak + Vector2(-800, -100), peak + Vector2(800, -100)])
+	var pond := PackedVector2Array(
+		[
+			peak + Vector2(-600, 300),
+			peak + Vector2(-500, 300),
+			peak + Vector2(-500, 400),
+			peak + Vector2(-600, 300)
+		]
+	)
 	var data := {
 		"elements":
 		[
@@ -100,6 +108,7 @@ static func _write_overpass_fixture(georef: GwGeoReference) -> void:
 				"geometry": to_geom.call(closed)
 			},
 			{"type": "way", "tags": {"highway": "residential"}, "geometry": to_geom.call(road)},
+			{"type": "way", "tags": {"natural": "water"}, "geometry": to_geom.call(pond)},
 		]
 	}
 	DirAccess.make_dir_recursive_absolute(TILE_ROOT)
@@ -230,6 +239,19 @@ func test_build_saves_scene() -> void:
 	assert_vector(placed).is_equal_approx(expected.origin, Vector3(1e-3, 1e-3, 1e-3))
 	var mat := chunk.get_surface_override_material(0) as StandardMaterial3D
 	assert_object(mat.albedo_texture).is_not_null()
+	# Distance LOD: two coarser levels sharing the material, handing over in turn.
+	var lod1 := chunk.get_node("Lod1") as MeshInstance3D
+	var lod2 := chunk.get_node("Lod2") as MeshInstance3D
+	assert_object(lod1.get_surface_override_material(0)).is_same(mat)
+	assert_float(chunk.visibility_range_end).is_greater(0.0)
+	assert_float(lod1.visibility_range_begin).is_equal(chunk.visibility_range_end)
+	assert_float(lod2.visibility_range_begin).is_equal(lod1.visibility_range_end)
+	assert_float(lod2.visibility_range_end).is_equal(0.0)
+	assert_int(lod2.mesh.get_faces().size()).is_less(chunk.mesh.get_faces().size())
+	(
+		assert_bool(FileAccess.file_exists(folder.path_join("terrain/chunk_001_002_lod2.mesh")))
+		. is_true()
+	)
 	assert_str((scene.get_node("Attribution/Label") as Label).text).contains("synthetic terrarium")
 
 
@@ -259,6 +281,7 @@ func test_osm_buildings_and_roads() -> void:
 	var req := _osm_request("osm")
 	req.include_buildings = true
 	req.include_roads = true
+	req.include_water = true
 	var result: GwImportResult = await GwWorldBuilder.new().build(req)
 	assert_bool(result.ok).override_failure_message(result.error_message).is_true()
 	assert_int(result.stats.get("buildings", 0)).is_equal(1)
@@ -273,6 +296,9 @@ func test_osm_buildings_and_roads() -> void:
 	var scene := (load(result.scene_path) as PackedScene).instantiate() as GwSceneRoot
 	assert_int(scene.get_node("Buildings").get_child_count()).is_equal(1)
 	assert_object(scene.get_node_or_null("Roads/Residential")).is_not_null()
+	assert_int(result.stats.get("water_areas", 0)).is_equal(1)
+	assert_object((scene.get_node("Water") as MeshInstance3D).mesh).is_not_null()
+	assert_bool(FileAccess.file_exists(folder.path_join("water/water_material.tres"))).is_true()
 	var label := scene.get_node("Attribution/Label") as Label
 	assert_str(label.text).contains("OpenStreetMap")
 	add_child(scene)
@@ -312,6 +338,27 @@ func test_osm_failure_is_not_fatal() -> void:
 	assert_bool(warned).is_true()
 
 
+func test_missing_tile_filled_from_parent() -> void:
+	# Give the missing tile (X0 + 1, Y0 + 1) a parent one zoom lower: a flat 700 m.
+	var parent := Vector3i((X0 + 1) >> 1, (Y0 + 1) >> 1, Z - 1)
+	var img := Image.create_empty(256, 256, false, Image.FORMAT_RGB8)
+	var v := 700.0 + 32768.0
+	img.fill(Color8(floori(v / 256.0), floori(v) % 256, 0))
+	_save_tile("terrarium", parent, img)
+	var result: GwImportResult = await GwWorldBuilder.new().build(_request("parent"))
+	DirAccess.remove_absolute(
+		TILE_ROOT.path_join("terrarium/%d/%d/%d.png" % [parent.z, parent.x, parent.y])
+	)
+	assert_bool(result.ok).override_failure_message(result.error_message).is_true()
+	var warned := result.warnings.any(func(w: String) -> bool: return w.contains("lower zoom"))
+	assert_bool(warned).is_true()
+	var scene := auto_free((load(result.scene_path) as PackedScene).instantiate()) as GwSceneRoot
+	var hf := scene.heightfield
+	# Middle of the formerly missing south-east tile.
+	assert_float(hf.get_height(384, 384)).is_equal_approx(700.0, 0.01)
+	assert_int(hf.count_nodata()).is_equal(0)
+
+
 func test_missing_imagery_falls_back_to_elevation_colours() -> void:
 	var req := _request("no_imagery")
 	req.imagery_provider.url_template = TILE_ROOT.path_join("no_imagery/{z}/{x}/{y}.png")
@@ -329,6 +376,84 @@ func test_missing_imagery_falls_back_to_elevation_colours() -> void:
 	assert_bool(mat.vertex_color_use_as_albedo).is_true()
 	var arrays := chunk.mesh.surface_get_arrays(0)
 	assert_int((arrays[Mesh.ARRAY_COLOR] as PackedColorArray).size()).is_greater(0)
+
+
+func test_gltf_export() -> void:
+	var req := _osm_request("gltf")
+	req.include_buildings = true
+	req.include_roads = true
+	var result: GwImportResult = await GwWorldBuilder.new().build(req)
+	assert_bool(result.ok).override_failure_message(result.error_message).is_true()
+	# Not added to the tree: the dock exports scenes that are not open.
+	var scene := (load(result.scene_path) as PackedScene).instantiate() as Node3D
+	var path := "user://gw_test_export.glb"
+	assert_int(GwGltfExporter.export_scene(scene, path)).is_equal(OK)
+	scene.free()
+	assert_int(FileAccess.get_file_as_bytes(path).size()).is_greater(1000)
+
+	# Read it back: full-detail chunks, buildings and roads; no LODs or collision.
+	var doc := GLTFDocument.new()
+	var state := GLTFState.new()
+	assert_int(doc.append_from_file(path, state)).is_equal(OK)
+	var back := doc.generate_scene(state)
+	var meshes := back.find_children("*", "MeshInstance3D", true, false)
+	var chunks := result.stats["chunks"] as int
+	assert_int(meshes.size()).is_equal(chunks + 1 + 1)
+	assert_int(back.find_children("*", "CollisionShape3D", true, false).size()).is_equal(0)
+	assert_object(back.get_node_or_null("Terrain/Chunk_000_000")).is_not_null()
+	var mat := (back.get_node("Terrain/Chunk_000_000") as MeshInstance3D).get_active_material(0)
+	assert_object((mat as BaseMaterial3D).albedo_texture).is_not_null()
+	assert_int(state.images.size()).is_greater(0)
+	back.free()
+	DirAccess.remove_absolute(path)
+
+
+func test_terrain_loader_builds_at_runtime() -> void:
+	var loader := GwTerrainLoader.new()
+	loader.request = _request("loader")
+	add_child(loader)
+	var stages := {}
+	loader.progress.connect(func(stage: String, _d: int, _t: int) -> void: stages[stage] = true)
+	var result: GwImportResult = await loader.build()
+	assert_bool(result.ok).override_failure_message(result.error_message).is_true()
+	assert_object(loader.scene_root).is_not_null()
+	assert_object(loader.scene_root.get_parent()).is_same(loader)
+	assert_bool(stages.has("meshes")).is_true()
+	assert_bool(DirAccess.dir_exists_absolute(OUTPUT_DIR.path_join("loader"))).is_false()
+	# A cancelled build keeps the previous scene.
+	var previous := loader.scene_root
+	var state := {"result": null}
+	loader.finished.connect(func(r: GwImportResult) -> void: state["result"] = r, CONNECT_ONE_SHOT)
+	loader.build.call()
+	loader.cancel()
+	while state["result"] == null:
+		await get_tree().process_frame
+	var cancelled: GwImportResult = state["result"]
+	assert_int(cancelled.error_code).is_equal(GwImportResult.ErrorCode.CANCELLED)
+	assert_object(loader.scene_root).is_same(previous)
+	loader.clear()
+	assert_object(loader.scene_root).is_null()
+	loader.queue_free()
+
+
+func test_request_around() -> void:
+	var req := GwTerrainLoader.request_around(
+		35.36, 138.73, 2000.0, "gsi_dem10b", "gsi_seamlessphoto"
+	)
+	assert_str(req.elevation_provider.id).is_equal("gsi_dem10b")
+	assert_str(req.imagery_provider.id).is_equal("gsi_seamlessphoto")
+	assert_float(req.bbox.width_m()).is_equal_approx(2000.0, 1.0)
+	assert_bool(GwImportPlan.from_request(req).is_valid()).is_true()
+
+
+func test_lod_can_be_turned_off() -> void:
+	var req := _request("no_lod")
+	req.lod_levels = 0
+	var root := await GwWorldBuilder.new().build_nodes(req)
+	var chunk := root.get_node("Terrain/Chunk_000_000") as MeshInstance3D
+	assert_object(chunk.get_node_or_null("Lod1")).is_null()
+	assert_float(chunk.visibility_range_end).is_equal(0.0)
+	root.free()
 
 
 func test_build_nodes_in_memory() -> void:

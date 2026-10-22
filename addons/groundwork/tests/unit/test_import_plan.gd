@@ -150,3 +150,18 @@ func test_osm_endpoints_order() -> void:
 	var endpoints := GwImportPlan.from_request(req).osm_endpoints()
 	assert_str(endpoints[0].id).is_equal("custom_overpass")
 	assert_int(endpoints.size()).is_greater(1)
+
+
+func test_512_px_elevation_provider() -> void:
+	var req := _request(3000.0)
+	req.elevation_provider.tile_size = 512
+	var plan := GwImportPlan.from_request(req)
+	# 10 m target: z13 at 512 px (~3.9 m at 35°N, the closest on a log scale is z13).
+	assert_int(plan.elevation_zoom).is_equal(13)
+	assert_int(plan.grid_width).is_equal(plan.elevation_tiles.size.x * 512)
+	assert_float(plan.cell_size_m).is_equal_approx(
+		GwTileMath.ground_resolution(35.36, 13, 512), 0.01
+	)
+	var g := plan.create_geo_reference()
+	var sw := g.to_local(req.bbox.south, req.bbox.west)
+	assert_float(plan.grid_origin.x).is_less_equal(sw.x)
