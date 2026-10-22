@@ -1,1 +1,147 @@
-# godot-groundwork
+# Groundwork for Godot
+
+Pick an area on a map inside the Godot editor and get a **walkable scene of the real
+world** — terrain mesh, collision and aerial imagery — built only from standard Godot
+nodes. Pure GDScript: no GDExtension, no GDAL, no other addons.
+
+![Mt. Fuji summit imported with Groundwork for Godot](docs/preview.png)
+
+<sub>Mt. Fuji summit, 3 km × 3 km. 出典：国土地理院「地理院タイル（標高タイル DEM10B、全国最新写真（シームレス））」を加工して作成</sub>
+
+> Groundwork for Godot is an unofficial community project and is not affiliated with
+> or endorsed by the Godot Foundation.
+
+## Quick start
+
+1. Copy `addons/groundwork/` into your project and enable **Groundwork for Godot** in
+   *Project → Project Settings → Plugins*. A **Geo** dock appears on the right.
+2. Search for a place (or type `lat, lon`), then **Shift+drag** on the map to select an
+   area. Choose an elevation provider (and imagery, if available for the area).
+3. Press **Import**, then **Open Scene** — or **Add to Current Scene** and drop a
+   character on it.
+
+Requires **Godot 4.4 or later**.
+
+## What you get
+
+```
+res://geo/<name>/
+├── <name>.tscn            GwSceneRoot (Node3D) → Terrain → Chunk_XXX_YYY (MeshInstance3D)
+│                                                   └── StaticBody3D → CollisionShape3D (HeightMapShape3D)
+├── georef.tres            GwGeoReference: origin, scale, attribution
+├── heightfield.res        GwHeightfield: the full elevation grid
+├── import_request.tres    every setting, to re-import the same area
+├── ATTRIBUTION.md         who to credit
+└── terrain/               chunk_XXX_YYY.mesh / .png / _collision.res
+```
+
+- Chunks (128 cells by default) share their border vertices, so there are no seams.
+- Mesh and collision come from the same heights and match exactly.
+- PNG textures go through the editor's import pipeline (VRAM compressed, mipmaps).
+- A small attribution label (`CanvasLayer`) is added to the scene; keep it, or credit
+  the data elsewhere (see below).
+
+## Coordinates
+
+Web Mercator around the centre of the area, scaled to approximate metres:
+**+X = east, +Y = up (metres), −Z = north**. Scale error is about 0.05 % at ±5 km
+(35°N), so it is fine for games; the dock warns above 20 km or 60° latitude.
+
+```gdscript
+var world := $Shibuya as GwSceneRoot
+var pos := world.geo_to_local(35.6595, 139.7005)   # y = terrain height
+var lat_lon := world.local_to_geo($Player.position)  # PackedFloat64Array [lat, lon]
+var h := world.sample_elevation(Vector2(pos.x, pos.z))
+```
+
+## Providers
+
+| Provider | Kind | Coverage | Best resolution | Notes |
+|---|---|---|---|---|
+| Terrain Tiles (AWS, Terrarium) | elevation | global | z15 (~3.9 m at 35°N) | Mixed sources (SRTM, 3DEP, EU-DEM, …) |
+| GSI DEM5A | elevation | Japan, partial | z15 (5 m) | Gaps are filled from neighbours |
+| GSI DEM10B | elevation | Japan | z14 (10 m) | |
+| GSI seamless aerial photo | imagery | Japan | z18 | |
+| OpenStreetMap, GSI pale map | basemap | — | — | Dock background only, never baked into imports |
+
+A global imagery preset is not included yet: we only ship sources whose terms clearly
+allow embedding in games. You can add your own provider by saving a `GwTileProvider`
+resource (URL template `https://…/{z}/{x}/{y}.png`, zoom range, attribution) in
+`res://groundwork_providers/`. For keys, use `{key}` in the URL and set
+*Editor Settings → groundwork/api_keys/<provider id>* — keys never go into project files.
+
+## Attribution is required
+
+Every provider requires credit wherever its data is shown. Each import writes the exact
+text to `ATTRIBUTION.md` and `GwGeoReference.attribution`, and adds an on-screen label.
+If you remove the label, put the attribution in your game's credits. Check each
+provider's terms (linked in `ATTRIBUTION.md`) before commercial use.
+
+## Scripting
+
+The dock is a thin UI over the core API, which also works from your own tool scripts:
+
+```gdscript
+var req := GwImportRequest.new()
+req.bbox = GwGeoBBox.from_sw_ne(35.65, 139.69, 35.68, 139.72)
+req.import_name = "shibuya"
+req.output_dir = "res://geo/"
+req.elevation_provider = GwProviderRegistry.find("terrarium_aws")
+req.imagery_provider = GwProviderRegistry.find("gsi_seamlessphoto")
+req.target_resolution_m = 10.0
+
+var builder := GwWorldBuilder.new()
+builder.progress.connect(func(stage, done, total): print(stage, " ", done, "/", total))
+var result: GwImportResult = await builder.build(req)
+if result.ok:
+	print(result.scene_path, result.warnings)
+else:
+	push_error(result.error_message)
+```
+
+`GwWorldBuilder.build_nodes(req)` returns the scene in memory without writing files.
+
+## Settings
+
+| Where | Key | |
+|---|---|---|
+| Editor Settings | `groundwork/network/concurrency` | parallel downloads (default 6) |
+| Editor Settings | `groundwork/geocoder/enabled` | place search via Nominatim |
+| Editor Settings | `groundwork/api_keys/<id>` | per-provider API keys |
+| Project Settings | `groundwork/defaults/*` | default providers, resolution, output folder |
+| Project Settings | `groundwork/log_level` | console log level; the full log of the last import is in `user://groundwork_last_import.log` |
+
+Downloaded tiles are cached in `user://groundwork_cache/` (per project); the dock shows
+its size and can clear it.
+
+## Roadmap
+
+- **v0.2**: OpenStreetMap buildings (extruded) and roads, with collision.
+- **v0.3+**: distance LOD, water and land use, GeoTIFF / GeoJSON import, export
+  adapters (Terrain3D, glTF), runtime loading.
+
+## Development
+
+The repository root is a Godot project (`demo/` has a first-person controller: import an
+area named `demo`, then run the project).
+
+```bash
+./tools/install_gdunit4.sh
+godot --headless --path . --import
+godot --headless --path . -s res://addons/gdUnit4/bin/GdUnitCmdTool.gd --ignoreHeadlessMode -a res://addons/groundwork/tests/unit
+```
+
+Unit tests are offline (synthetic tiles). With network access you can also run the editor
+integration test, which drives the dock through a real import:
+
+```bash
+godot --headless --editor --path . -- --groundwork-selftest
+```
+
+Lint and format with [gdtoolkit](https://github.com/Scony/godot-gdscript-toolkit) 4.x:
+`gdlint addons/groundwork demo tools` and `gdformat --check addons/groundwork demo tools`.
+
+## License
+
+Code: see [LICENSE](LICENSE). Geographic data in generated output is licensed by its
+providers (see each import's `ATTRIBUTION.md`).
