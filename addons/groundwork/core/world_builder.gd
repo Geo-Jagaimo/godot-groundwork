@@ -482,11 +482,18 @@ func _save(plan: GwImportPlan, data: BuildData, result: GwImportResult) -> void:
 		return
 	if not _save_resource(req.duplicate(), folder.path_join("import_request.tres"), result, false):
 		return
-	var md := FileAccess.open(folder.path_join("ATTRIBUTION.md"), FileAccess.WRITE)
-	if md:
-		md.store_string(data.attribution.to_markdown(req.import_name, req.bbox))
-		md.close()
-		result.files.append(folder.path_join("ATTRIBUTION.md"))
+	var md_path := folder.path_join("ATTRIBUTION.md")
+	var md := FileAccess.open(md_path, FileAccess.WRITE)
+	if md == null:
+		# Attribution is a licence requirement: do not produce a scene without it.
+		result.fail(
+			GwImportResult.ErrorCode.SAVE_FAILED,
+			"Could not write %s (%s)." % [md_path, error_string(FileAccess.get_open_error())]
+		)
+		return
+	md.store_string(data.attribution.to_markdown(req.import_name, req.bbox))
+	md.close()
+	result.files.append(md_path)
 	done += 4
 	_emit("save", done, total)
 
@@ -598,6 +605,7 @@ func _save_textures(
 	var importer := file_importer if file_importer.is_valid() else default_file_importer
 	var tree := _tree()
 	if importer.is_valid():
+		var not_imported := 0
 		var pngs := PackedStringArray()
 		for i in data.images.size():
 			var path := terrain_dir.path_join(data.names[i] + ".png")
@@ -617,7 +625,18 @@ func _save_textures(
 				textures[i] = tex
 				result.files.append(pngs[i])
 			else:
-				logger.warn("Texture %s was not imported; saving it as .res instead." % pngs[i])
+				not_imported += 1
+		if not_imported > 0:
+			(
+				result
+				. warnings
+				. append(
+					(
+						"%d textures were not imported by the editor and were saved as .res files instead."
+						% not_imported
+					)
+				)
+			)
 	for i in data.images.size():
 		if textures[i] != null:
 			continue
