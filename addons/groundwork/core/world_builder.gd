@@ -80,6 +80,8 @@ static func stage_label(stage: String) -> String:
 	return STAGE_LABELS.get(stage, stage.capitalize())
 
 
+## Cancels the running build (or the next one, if none is running). The builder
+## can be used again afterwards.
 func cancel() -> void:
 	token.cancel()
 
@@ -867,6 +869,8 @@ func _emit(stage: String, done: int, total: int) -> void:
 
 
 func _finish(result: GwImportResult, started_msec: int) -> GwImportResult:
+	# A cancel only applies to one build.
+	token = GwCancellationToken.new()
 	result.stats["seconds"] = (Time.get_ticks_msec() - started_msec) / 1000.0
 	for w in result.warnings:
 		logger.warn(w)

@@ -382,6 +382,9 @@ func test_cancel() -> void:
 	var result: GwImportResult = await builder.build(_request("cancelled"))
 	assert_bool(result.ok).is_false()
 	assert_int(result.error_code).is_equal(GwImportResult.ErrorCode.CANCELLED)
+	# The same builder works again after a cancel.
+	var again: GwImportResult = await builder.build(_request("after_cancel"))
+	assert_bool(again.ok).override_failure_message(again.error_message).is_true()
 
 
 func test_invalid_request() -> void:
