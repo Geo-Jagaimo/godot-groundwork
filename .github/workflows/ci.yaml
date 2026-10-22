@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install "gdtoolkit==4.5.0"
+      - run: gdlint addons/groundwork demo tools
+      - run: gdformat --check addons/groundwork demo tools
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        godot: ["4.4.1"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Download Godot ${{ matrix.godot }}
+        run: |
+          curl -sSfL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${{ matrix.godot }}-stable/Godot_v${{ matrix.godot }}-stable_linux.x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${{ matrix.godot }}-stable_linux.x86_64" godot
+          ./godot --version
+      - name: Install gdUnit4
+        run: ./tools/install_gdunit4.sh
+      - name: Import project
+        run: ./godot --headless --path . --import
+      - name: Check scripts
+        run: ./godot --headless --path . -s res://tools/check_scripts.gd
+      - name: Unit tests (offline)
+        run: >
+          ./godot --headless --path . -s res://addons/gdUnit4/bin/GdUnitCmdTool.gd
+          --ignoreHeadlessMode -c -a res://addons/groundwork/tests/unit
