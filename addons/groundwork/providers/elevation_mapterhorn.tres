@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="GwTileProvider" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/groundwork/core/tile_provider.gd" id="1_provider"]
+
+[resource]
+script = ExtResource("1_provider")
+id = "mapterhorn"
+display_name = "Mapterhorn (global, open data)"
+kind = 0
+url_template = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"
+min_zoom = 0
+max_zoom = 16
+tile_size = 512
+decoder = 1
+attribution = "© Mapterhorn (https://mapterhorn.com). Terrain tiles assembled from open elevation data (Copernicus GLO-30, national lidar and DEM data and others). The sources used in your area may need their own credits: see https://mapterhorn.com/attribution for each source and its licence."
+attribution_short = "Elevation: © Mapterhorn and its sources (mapterhorn.com/attribution)"
+terms_url = "https://mapterhorn.com/attribution"
+cache_ttl_days = 90
+avg_tile_kb = 150.0
