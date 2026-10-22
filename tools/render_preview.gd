@@ -3,7 +3,7 @@ extends SceneTree
 ##
 ## godot --path . -s res://tools/render_preview.gd -- --scene=res://geo/fuji/fuji.tscn \
 ##     --out=/tmp/preview.png [--yaw=30] [--pitch=-25] [--distance=1.2 | --meters=300]
-##     [--at=lat,lon]
+##     [--at=lat,lon] [--only-lod=<level>]
 
 
 func _init() -> void:
@@ -18,6 +18,18 @@ func _run() -> void:
 	root.size = Vector2i(int(args.get("width", "1280")), int(args.get("height", "720")))
 	var scene := (load(args.get("scene", "res://geo/fuji/fuji.tscn")) as PackedScene).instantiate()
 	root.add_child(scene)
+	if args.has("only-lod"):
+		# Show a single terrain LOD level everywhere (0 = full detail).
+		var level := int(args["only-lod"])
+		for mi: GeometryInstance3D in scene.find_children("*", "GeometryInstance3D", true, false):
+			var lod := 0
+			if mi.name.begins_with("Lod"):
+				lod = int(mi.name.trim_prefix("Lod"))
+			elif not mi.name.begins_with("Chunk"):
+				continue
+			mi.visibility_range_begin = 0.0
+			mi.visibility_range_end = 0.0
+			mi.transparency = 0.0 if lod == level else 1.0
 
 	var env := WorldEnvironment.new()
 	env.environment = Environment.new()
