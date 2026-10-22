@@ -101,6 +101,36 @@ func test_concave_footprint_roof_area() -> void:
 	assert_float(roof_area).is_equal_approx(75.0, 1e-3)
 
 
+func test_courtyard_is_cut_out_with_inner_walls() -> void:
+	var b := _building([Vector2(0, 0), Vector2(20, 0), Vector2(20, 20), Vector2(0, 20)])
+	b.holes.append(
+		PackedVector2Array([Vector2(5, 5), Vector2(15, 5), Vector2(15, 15), Vector2(5, 15)])
+	)
+	var out := GwBuildingBuilder.build([b], _flat(), 3.0, 6.0)
+	assert_int(out["holes_dropped"]).is_equal(0)
+	var verts: PackedVector3Array = out["arrays"][Mesh.ARRAY_VERTEX]
+	var idx: PackedInt32Array = out["arrays"][Mesh.ARRAY_INDEX]
+	var roof_area := 0.0
+	var inner_walls := 0
+	for t in range(0, idx.size(), 3):
+		var a := verts[idx[t]]
+		var bb := verts[idx[t + 1]]
+		var c := verts[idx[t + 2]]
+		var front := (c - a).cross(bb - a)
+		if front.y > 0.0:
+			roof_area += front.length() / 2.0
+			continue
+		# Walls of the courtyard face its centre (10, 10).
+		var mid := (a + bb + c) / 3.0
+		var on_hole := absf(mid.x - 10.0) <= 5.01 and absf(mid.z - 10.0) <= 5.01
+		if on_hole:
+			inner_walls += 1
+			var to_center := Vector2(10.0 - mid.x, 10.0 - mid.z)
+			assert_float(Vector2(front.x, front.z).dot(to_center)).is_greater(0.0)
+	assert_float(roof_area).is_equal_approx(400.0 - 100.0, 1e-3)
+	assert_int(inner_walls).is_equal(8)
+
+
 func test_slope_base_uses_lowest_point() -> void:
 	var out := GwBuildingBuilder.build(
 		[_building([Vector2(0, 0), Vector2(10, 0), Vector2(10, 10), Vector2(0, 10)])],

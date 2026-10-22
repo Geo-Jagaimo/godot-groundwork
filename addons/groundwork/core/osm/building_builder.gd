@@ -80,25 +80,30 @@ static func build(
 	var indices := PackedInt32Array()
 	var built := 0
 	var failed := 0
+	var holes_dropped := 0
 	for b: GwOsmParser.Building in buildings:
 		var ring := b.ring
-		var area := signed_area(ring)
+		var area := GwPolygonUtil.signed_area(ring)
 		if ring.size() < 3 or absf(area) < MIN_AREA:
 			failed += 1
 			continue
-		var tris := Geometry2D.triangulate_polygon(ring)
+		var roof := GwPolygonUtil.triangulate(ring, b.holes)
+		var tris: PackedInt32Array = roof["indices"]
 		if tris.is_empty():
 			failed += 1
 			continue
+		if roof["holes_dropped"]:
+			holes_dropped += 1
 		var ground := INF
 		for p in ring:
 			ground = minf(ground, hf.sample(p))
 		var bottom := ground - BASE_SINK
 		var top := ground + height_for(b.tags, level_height, default_height)
 
-		# Roof.
+		# Roof (with courtyards cut out).
+		var roof_points: PackedVector2Array = roof["points"]
 		var roof_start := verts.size()
-		for p in ring:
+		for p in roof_points:
 			verts.append(Vector3(p.x, top, p.y))
 			normals.append(Vector3.UP)
 			uvs.append(p / TEXTURE_SCALE)
@@ -112,34 +117,12 @@ static func build(
 				Vector3.UP
 			)
 
-		# Walls, one quad per edge, facing outwards.
-		var along := 0.0
-		for i in ring.size():
-			var a := ring[i]
-			var c := ring[(i + 1) % ring.size()]
-			var length := a.distance_to(c)
-			if length < 0.001:
-				continue
-			var d := (c - a) / length
-			var n2 := Vector2(d.y, -d.x) if area > 0.0 else Vector2(-d.y, d.x)
-			var n := Vector3(n2.x, 0.0, n2.y)
-			var s := verts.size()
-			var u0 := along / TEXTURE_SCALE
-			var u1 := (along + length) / TEXTURE_SCALE
-			var v_bottom := (top - bottom) / TEXTURE_SCALE
-			verts.append(Vector3(a.x, bottom, a.y))
-			verts.append(Vector3(c.x, bottom, c.y))
-			verts.append(Vector3(c.x, top, c.y))
-			verts.append(Vector3(a.x, top, a.y))
-			normals.append_array(PackedVector3Array([n, n, n, n]))
-			uvs.append_array(
-				PackedVector2Array(
-					[Vector2(u0, v_bottom), Vector2(u1, v_bottom), Vector2(u1, 0), Vector2(u0, 0)]
-				)
-			)
-			GwMeshUtil.add_triangle(indices, verts, s, s + 1, s + 2, n)
-			GwMeshUtil.add_triangle(indices, verts, s, s + 2, s + 3, n)
-			along += length
+		# Walls facing away from the building: outwards on the outline, into the
+		# courtyard on holes.
+		_add_walls(ring, false, bottom, top, verts, normals, uvs, indices)
+		if not roof["holes_dropped"]:
+			for hole in b.holes:
+				_add_walls(hole, true, bottom, top, verts, normals, uvs, indices)
 		built += 1
 
 	var faces := PackedVector3Array()
@@ -147,17 +130,62 @@ static func build(
 	for i in indices.size():
 		faces[i] = verts[indices[i]]
 	var arrays: Variant = GwMeshUtil.surface_arrays(verts, normals, uvs, indices)
-	return {"arrays": arrays, "faces": faces, "built": built, "failed": failed}
+	return {
+		"arrays": arrays,
+		"faces": faces,
+		"built": built,
+		"failed": failed,
+		"holes_dropped": holes_dropped,
+	}
 
 
 ## Shoelace area in the XZ plane (sign gives the winding).
 static func signed_area(ring: PackedVector2Array) -> float:
-	var a := 0.0
+	return GwPolygonUtil.signed_area(ring)
+
+
+## One quad per edge of [param ring], facing away from the ring's inside (or,
+## for a [param hole], into it).
+static func _add_walls(
+	ring: PackedVector2Array,
+	hole: bool,
+	bottom: float,
+	top: float,
+	verts: PackedVector3Array,
+	normals: PackedVector3Array,
+	uvs: PackedVector2Array,
+	indices: PackedInt32Array
+) -> void:
+	var outward_sign := 1.0 if GwPolygonUtil.signed_area(ring) > 0.0 else -1.0
+	if hole:
+		outward_sign = -outward_sign
+	var along := 0.0
+	var v_bottom := (top - bottom) / TEXTURE_SCALE
 	for i in ring.size():
-		var p := ring[i]
-		var q := ring[(i + 1) % ring.size()]
-		a += p.x * q.y - q.x * p.y
-	return a / 2.0
+		var a := ring[i]
+		var c := ring[(i + 1) % ring.size()]
+		var length := a.distance_to(c)
+		if length < 0.001:
+			continue
+		var d := (c - a) / length
+		var n2 := Vector2(d.y, -d.x) * outward_sign
+		var n := Vector3(n2.x, 0.0, n2.y)
+		var s := verts.size()
+		var u0 := along / TEXTURE_SCALE
+		var u1 := (along + length) / TEXTURE_SCALE
+		verts.append(Vector3(a.x, bottom, a.y))
+		verts.append(Vector3(c.x, bottom, c.y))
+		verts.append(Vector3(c.x, top, c.y))
+		verts.append(Vector3(a.x, top, a.y))
+		normals.append_array(PackedVector3Array([n, n, n, n]))
+		uvs.append_array(
+			PackedVector2Array(
+				[Vector2(u0, v_bottom), Vector2(u1, v_bottom), Vector2(u1, 0), Vector2(u0, 0)]
+			)
+		)
+		GwMeshUtil.add_triangle(indices, verts, s, s + 1, s + 2, n)
+		GwMeshUtil.add_triangle(indices, verts, s, s + 2, s + 3, n)
+		along += length
 
 
 static func _centroid(ring: PackedVector2Array) -> Vector2:
