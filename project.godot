@@ -12,3 +12,7 @@ config_version=5
 
 config/name="Groundwork for Godot (dev)"
 config/features=PackedStringArray("4.4", "Forward Plus")
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/groundwork/plugin.cfg")
