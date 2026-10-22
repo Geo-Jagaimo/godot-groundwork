@@ -113,9 +113,11 @@ func _ready() -> void:
 	_reload_providers()
 	var view: Array = SettingsBridge.get_meta_value("view", [20.0, 0.0, 2.0])
 	map.set_view(view[0], view[1], view[2])
-	var sel: Variant = SettingsBridge.get_meta_value("selection", Vector4.ZERO)
-	if sel is Vector4 and sel != Vector4.ZERO:
-		var b := GwGeoBBox.from_vector4(sel)
+	# Stored as text: a Vector4 is 32-bit and saved with 6 significant digits.
+	var sel := str(SettingsBridge.get_meta_value("selection", ""))
+	var bounds := GwGeoBBox.parse_degrees(sel, 4)
+	if not bounds.is_empty():
+		var b := GwGeoBBox.from_sw_ne(bounds[0], bounds[1], bounds[2], bounds[3])
 		map.set_selection(b)
 		_on_selection_changed(b)
 	else:
@@ -157,7 +159,7 @@ func _on_basemap_selected(index: int) -> void:
 func _on_selection_changed(bbox: GwGeoBBox) -> void:
 	if bbox == null:
 		_area_label.text = "No area selected. Shift+drag on the map."
-		SettingsBridge.set_meta_value("selection", Vector4.ZERO)
+		SettingsBridge.set_meta_value("selection", "")
 	else:
 		_area_label.text = (
 			"%.5f, %.5f – %.5f, %.5f\n%.2f km × %.2f km"
@@ -170,7 +172,7 @@ func _on_selection_changed(bbox: GwGeoBBox) -> void:
 				bbox.height_m() / 1000.0,
 			]
 		)
-		SettingsBridge.set_meta_value("selection", bbox.to_vector4())
+		SettingsBridge.set_meta_value("selection", bbox.bounds_text)
 	panel.set_bbox(bbox)
 
 
