@@ -1,0 +1,16 @@
+# Godot
+.godot/
+/android/
+*.translation
+export_presets.cfg
+
+# Dev-only test framework (installed by tools/install_gdunit4.sh)
+/addons/gdUnit4/
+/reports/
+/gdunit4_testadapter/
+
+# Imports generated while developing
+/geo/
+
+.DS_Store
+/.gw_test_output/
