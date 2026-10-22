@@ -14,10 +14,12 @@ const BASE := 200.0
 func before() -> void:
 	_write_elevation_tiles()
 	var req := _request("probe")
-	for t in GwImportPlan.from_request(req).imagery_tile_list():
+	var plan := GwImportPlan.from_request(req)
+	for t in plan.imagery_tile_list():
 		var img := Image.create_empty(256, 256, false, Image.FORMAT_RGB8)
 		img.fill(Color8((t.x * 40) % 256, (t.y * 70) % 256, 128))
 		_save_tile("imagery", t, img)
+	_write_overpass_fixture(GwImportPlan.from_request(_osm_request("probe")).create_geo_reference())
 
 
 func after() -> void:
@@ -49,6 +51,72 @@ static func _provider(kind: GwTileProvider.Kind, folder: String) -> GwTileProvid
 	p.attribution = "© synthetic " + folder
 	p.attribution_short = "synthetic " + folder
 	return p
+
+
+static func _overpass_provider() -> GwTileProvider:
+	var p := GwTileProvider.new()
+	p.id = "offline_overpass"
+	p.kind = GwTileProvider.Kind.VECTOR
+	p.url_template = TILE_ROOT.path_join("overpass.json")
+	p.attribution = "© OpenStreetMap contributors (ODbL), synthetic test data"
+	p.attribution_short = "© OpenStreetMap contributors"
+	return p
+
+
+## Local XZ of the hill's peak (the shared corner of the four tiles).
+static func _peak(georef: GwGeoReference) -> Vector2:
+	var l := georef.to_local(
+		GwTileMath.tile_y_to_lat(Y0 + 1, Z), GwTileMath.tile_x_to_lon(X0 + 1, Z)
+	)
+	return Vector2(l.x, l.z)
+
+
+## A 40 m square building 300 m east of the peak, and a road crossing the area.
+static func _osm_building_ring(georef: GwGeoReference) -> PackedVector2Array:
+	var c := _peak(georef) + Vector2(300, 0)
+	return PackedVector2Array(
+		[c + Vector2(-20, -20), c + Vector2(20, -20), c + Vector2(20, 20), c + Vector2(-20, 20)]
+	)
+
+
+static func _write_overpass_fixture(georef: GwGeoReference) -> void:
+	var to_geom := func(points: PackedVector2Array) -> Array:
+		var out := []
+		for p in points:
+			var ll := georef.to_geo(Vector3(p.x, 0, p.y))
+			out.append({"lat": ll[0], "lon": ll[1]})
+		return out
+	var ring := _osm_building_ring(georef)
+	var closed := ring.duplicate()
+	closed.append(ring[0])
+	var peak := _peak(georef)
+	var road := PackedVector2Array([peak + Vector2(-800, -100), peak + Vector2(800, -100)])
+	var data := {
+		"elements":
+		[
+			{
+				"type": "way",
+				"tags": {"building": "yes", "height": "20"},
+				"geometry": to_geom.call(closed)
+			},
+			{"type": "way", "tags": {"highway": "residential"}, "geometry": to_geom.call(road)},
+		]
+	}
+	DirAccess.make_dir_recursive_absolute(TILE_ROOT)
+	FileAccess.open(TILE_ROOT.path_join("overpass.json"), FileAccess.WRITE).store_string(
+		JSON.stringify(data)
+	)
+
+
+## 4 km around the peak: within the OSM area limit, still on all four tiles.
+static func _osm_request(name: String) -> GwImportRequest:
+	var req := _request(name)
+	req.bbox = GwGeoBBox.from_center_size(
+		GwTileMath.tile_y_to_lat(Y0 + 1, Z), GwTileMath.tile_x_to_lon(X0 + 1, Z), 4000, 4000
+	)
+	req.osm_provider = _overpass_provider()
+	req.osm_use_fallbacks = false
+	return req
 
 
 static func _request(name: String) -> GwImportRequest:
@@ -185,6 +253,63 @@ func test_collision_matches_terrain() -> void:
 		if not hit.is_empty():
 			assert_float(hit.position.y).is_equal_approx(hf.sample(xz), 0.05)
 	scene.queue_free()
+
+
+func test_osm_buildings_and_roads() -> void:
+	var req := _osm_request("osm")
+	req.include_buildings = true
+	req.include_roads = true
+	var result: GwImportResult = await GwWorldBuilder.new().build(req)
+	assert_bool(result.ok).override_failure_message(result.error_message).is_true()
+	assert_int(result.stats.get("buildings", 0)).is_equal(1)
+	assert_int(result.stats.get("roads", 0)).is_equal(1)
+	var folder := OUTPUT_DIR.path_join("osm")
+	for f: String in ["buildings/building_material.tres", "roads/residential.mesh"]:
+		var exists := FileAccess.file_exists(folder.path_join(f))
+		assert_bool(exists).override_failure_message(f).is_true()
+	var attribution := FileAccess.get_file_as_string(folder.path_join("ATTRIBUTION.md"))
+	assert_str(attribution).contains("ODbL")
+
+	var scene := (load(result.scene_path) as PackedScene).instantiate() as GwSceneRoot
+	assert_int(scene.get_node("Buildings").get_child_count()).is_equal(1)
+	assert_object(scene.get_node_or_null("Roads/Residential")).is_not_null()
+	var label := scene.get_node("Attribution/Label") as Label
+	assert_str(label.text).contains("OpenStreetMap")
+	add_child(scene)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var space := scene.get_world_3d().direct_space_state
+	var hf := scene.heightfield
+	var ring := _osm_building_ring(scene.geo_reference)
+	var ground := INF
+	for p in ring:
+		ground = minf(ground, hf.sample(p))
+	var center := (ring[0] + ring[2]) / 2.0
+	var hit := space.intersect_ray(
+		PhysicsRayQueryParameters3D.create(
+			Vector3(center.x, 5000, center.y), Vector3(center.x, -5000, center.y)
+		)
+	)
+	assert_float(hit.get("position", Vector3.ZERO).y).is_equal_approx(ground + 20.0, 0.05)
+	# Roads have no collision: a ray onto the road hits the terrain.
+	var on_road := _peak(scene.geo_reference) + Vector2(-400, -100)
+	var road_hit := space.intersect_ray(
+		PhysicsRayQueryParameters3D.create(
+			Vector3(on_road.x, 5000, on_road.y), Vector3(on_road.x, -5000, on_road.y)
+		)
+	)
+	assert_float(road_hit.get("position", Vector3.ZERO).y).is_equal_approx(hf.sample(on_road), 0.05)
+	scene.queue_free()
+
+
+func test_osm_failure_is_not_fatal() -> void:
+	var req := _osm_request("osm_missing")
+	req.include_buildings = true
+	req.osm_provider.url_template = TILE_ROOT.path_join("no_such_file.json")
+	var result: GwImportResult = await GwWorldBuilder.new().build(req)
+	assert_bool(result.ok).is_true()
+	var warned := result.warnings.any(func(w: String) -> bool: return w.contains("OpenStreetMap"))
+	assert_bool(warned).is_true()
 
 
 func test_build_nodes_in_memory() -> void:

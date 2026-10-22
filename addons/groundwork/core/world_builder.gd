@@ -25,8 +25,13 @@ const STAGE_LABELS := {
 	"textures": "Compositing textures",
 	"save": "Saving files",
 	"import": "Importing textures",
+	"osm_download": "Downloading OpenStreetMap data",
+	"osm_parse": "Reading OpenStreetMap data",
+	"buildings": "Building meshes (OSM)",
+	"roads": "Road meshes (OSM)",
 	"scene": "Saving scene",
 }
+const BUILDING_COLOR := Color(0.82, 0.8, 0.77)
 ## Main-thread work items between yields to keep the editor responsive.
 const MAIN_THREAD_BATCH := 4
 
@@ -43,6 +48,15 @@ class BuildData:
 	var images: Array[Image] = []
 	var uv_scales: Array[Vector2] = []
 	var uv_offsets: Array[Vector2] = []
+	var osm_provider: GwTileProvider
+	var building_names: Array[String] = []
+	var building_meshes: Array[ArrayMesh] = []
+	var building_shapes: Array[ConcavePolygonShape3D] = []
+	var road_classes: Array[String] = []
+	var road_meshes: Array[ArrayMesh] = []
+	var building_material: Material
+	## road class -> Material
+	var road_materials := {}
 
 
 ## Set by the editor plugin. Called as [code]await importer.call(paths)[/code]
@@ -141,6 +155,7 @@ func _generate(plan: GwImportPlan, result: GwImportResult) -> BuildData:
 	if data != null:
 		data.attribution.add_provider(req.elevation_provider)
 		data.attribution.add_provider(req.imagery_provider)
+		data.attribution.add_provider(data.osm_provider)
 	return data
 
 
@@ -309,19 +324,142 @@ func _generate_with(
 			data.uv_scales.append(c["uv_scale"])
 			data.uv_offsets.append(c["uv_offset"])
 
+	# 6. OpenStreetMap buildings and roads (failures only produce warnings).
 	data.georef = plan.create_geo_reference()
 	data.georef.heightfield = hf
-	result.stats = {
-		"elevation_zoom": plan.elevation_zoom,
-		"elevation_tiles": tiles.size(),
-		"imagery_zoom": plan.imagery_zoom,
-		"imagery_tiles": plan.imagery_tiles.get_area() if req.imagery_provider else 0,
-		"grid": Vector2i(hf.width, hf.height),
-		"cell_size_m": hf.cell_size,
-		"chunks": cells.size(),
-		"triangles": 2 * (hf.width - 1) * (hf.height - 1),
-	}
+	if req.includes_osm():
+		await _generate_osm(plan, data, result)
+		if token.is_cancelled():
+			return null
+
+	var stats := result.stats
+	stats["elevation_zoom"] = plan.elevation_zoom
+	stats["elevation_tiles"] = tiles.size()
+	stats["imagery_zoom"] = plan.imagery_zoom
+	stats["imagery_tiles"] = plan.imagery_tiles.get_area() if req.imagery_provider else 0
+	stats["grid"] = Vector2i(hf.width, hf.height)
+	stats["cell_size_m"] = hf.cell_size
+	stats["chunks"] = cells.size()
+	stats["triangles"] = 2 * (hf.width - 1) * (hf.height - 1)
 	return data
+
+
+func _generate_osm(plan: GwImportPlan, data: BuildData, result: GwImportResult) -> void:
+	var req := plan.request
+	var hf := data.heightfield
+	var client := GwOverpassClient.new()
+	if cache != null:
+		client.cache = cache
+	var query := GwOverpassClient.build_query(
+		req.bbox, req.include_buildings, req.include_roads, client.query_timeout_sec
+	)
+	var endpoints := plan.osm_endpoints()
+	var state := {"done": false, "response": {}}
+	var run := func() -> void:
+		state["response"] = await client.fetch(query, endpoints, token, host_node)
+		state["done"] = true
+	run.call()
+	var tree := _tree()
+	while not state["done"]:
+		# Total is unknown (0): the panel shows the downloaded size instead.
+		_emit("osm_download", client.downloaded_bytes, 0)
+		await tree.process_frame
+	var response: Dictionary = state["response"]
+	if token.is_cancelled():
+		return
+	if not response["ok"]:
+		result.warnings.append(
+			(
+				"Could not download OpenStreetMap data (%s); buildings and roads were skipped."
+				% response["error"]
+			)
+		)
+		return
+	logger.info("OSM data from %s (%d bytes)" % [response["endpoint"], response["text"].length()])
+	data.osm_provider = endpoints[0]
+	result.stats["osm_source"] = response["endpoint"]
+
+	var text: String = response["text"]
+	var georef := data.georef
+	var parsed: Array = await _run_parallel(
+		"osm_parse", 1, func(_i: int) -> Variant: return GwOsmParser.parse(text, georef)
+	)
+	var osm: GwOsmParser.Result = parsed[0]
+	if osm == null or not osm.error.is_empty():
+		result.warnings.append(
+			"Could not read OpenStreetMap data: %s" % (osm.error if osm else "?")
+		)
+		return
+	if osm.broken_rings > 0:
+		result.warnings.append(
+			"%d multipolygon building outlines were incomplete." % osm.broken_rings
+		)
+
+	if req.include_buildings:
+		var groups := GwBuildingBuilder.group_by_chunk(osm.buildings, hf, req.chunk_size)
+		var keys := groups.keys()
+		keys.sort()
+		var level_h := req.building_level_height_m
+		var default_h := req.building_default_height_m
+		var built := await _run_parallel(
+			"buildings",
+			keys.size(),
+			func(i: int) -> Variant:
+				return GwBuildingBuilder.build(groups[keys[i]], hf, level_h, default_h)
+		)
+		if token.is_cancelled():
+			return
+		var count := 0
+		var failed := 0
+		for i in keys.size():
+			var b: Dictionary = built[i]
+			count += b["built"]
+			failed += b["failed"]
+			if b["arrays"] == null:
+				continue
+			var key: Vector2i = keys[i]
+			data.building_names.append("chunk_%03d_%03d" % [key.x, key.y])
+			data.building_meshes.append(GwTerrainChunkBuilder.create_mesh(b["arrays"]))
+			var shape: ConcavePolygonShape3D = null
+			if req.generate_collision:
+				shape = ConcavePolygonShape3D.new()
+				shape.set_faces(b["faces"])
+			data.building_shapes.append(shape)
+			if i % MAIN_THREAD_BATCH == MAIN_THREAD_BATCH - 1:
+				await tree.process_frame
+		result.stats["buildings"] = count
+		if failed > 0:
+			result.warnings.append("%d building outlines could not be triangulated." % failed)
+
+	if req.include_roads:
+		var groups := GwRoadBuilder.group_by_class(osm.roads)
+		var classes: Array[String] = []
+		for cls in GwRoadBuilder.class_names():
+			if groups.has(cls):
+				classes.append(cls)
+		var widths := req.road_widths
+		var built := await _run_parallel(
+			"roads",
+			classes.size(),
+			func(i: int) -> Variant:
+				return GwRoadBuilder.build(groups[classes[i]], hf, classes[i], widths)
+		)
+		if token.is_cancelled():
+			return
+		var count := 0
+		for i in classes.size():
+			var r: Dictionary = built[i]
+			count += r["built"]
+			if r["arrays"] != null:
+				data.road_classes.append(classes[i])
+				data.road_meshes.append(GwTerrainChunkBuilder.create_mesh(r["arrays"]))
+		result.stats["roads"] = count
+	logger.info(
+		(
+			"OSM: %d buildings, %d roads"
+			% [result.stats.get("buildings", 0), result.stats.get("roads", 0)]
+		)
+	)
 
 
 func _save(plan: GwImportPlan, data: BuildData, result: GwImportResult) -> void:
@@ -367,6 +505,8 @@ func _save(plan: GwImportPlan, data: BuildData, result: GwImportResult) -> void:
 		textures = await _save_textures(terrain_dir, data, result)
 		if textures.is_empty():
 			return
+	if not await _save_osm(folder, data, result):
+		return
 
 	_emit("scene", 0, 1)
 	var root := _assemble_scene(plan, data, textures)
@@ -385,6 +525,63 @@ func _save(plan: GwImportPlan, data: BuildData, result: GwImportResult) -> void:
 	_emit("scene", 1, 1)
 	result.scene_path = scene_path
 	result.ok = true
+
+
+## Saves building and road meshes. Existing materials are reused so that edits
+## to them survive a re-import.
+func _save_osm(folder: String, data: BuildData, result: GwImportResult) -> bool:
+	var buildings_dir := folder.path_join("buildings")
+	var roads_dir := folder.path_join("roads")
+	_remove_old_chunks(buildings_dir)
+	_remove_files(roads_dir, ".mesh")
+	var tree := _tree()
+	if not data.building_meshes.is_empty():
+		DirAccess.make_dir_recursive_absolute(buildings_dir)
+		data.building_material = _material_file(
+			buildings_dir.path_join("building_material.tres"), BUILDING_COLOR, 0.9, result
+		)
+		for i in data.building_meshes.size():
+			var base := buildings_dir.path_join(data.building_names[i])
+			if not _save_resource(data.building_meshes[i], base + ".mesh", result):
+				return false
+			var shape := data.building_shapes[i]
+			if shape != null and not _save_resource(shape, base + "_collision.res", result):
+				return false
+			if i % MAIN_THREAD_BATCH == MAIN_THREAD_BATCH - 1:
+				await tree.process_frame
+	if not data.road_meshes.is_empty():
+		DirAccess.make_dir_recursive_absolute(roads_dir)
+		for i in data.road_meshes.size():
+			var cls := data.road_classes[i]
+			data.road_materials[cls] = _material_file(
+				roads_dir.path_join(cls + "_material.tres"),
+				GwRoadBuilder.CLASS_COLORS.get(cls, Color.GRAY),
+				0.95,
+				result
+			)
+			if not _save_resource(data.road_meshes[i], roads_dir.path_join(cls + ".mesh"), result):
+				return false
+	return result.error_code == GwImportResult.ErrorCode.NONE
+
+
+## Loads the material at [param path], or creates and saves a plain one.
+func _material_file(
+	path: String, color: Color, roughness: float, result: GwImportResult
+) -> Material:
+	if ResourceLoader.exists(path):
+		var existing := ResourceLoader.load(path)
+		if existing is Material:
+			return existing
+	var m := _plain_material(color, roughness)
+	_save_resource(m, path, result)
+	return m
+
+
+static func _plain_material(color: Color, roughness: float) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	m.roughness = roughness
+	return m
 
 
 func _save_textures(
@@ -479,10 +676,51 @@ func _assemble_scene(
 			shape.transform = Transform3D(xf.basis, xf.origin - whole)
 			body.add_child(shape)
 
+	_add_osm_nodes(root, data)
 	if req.add_attribution_label and not data.attribution.is_empty():
 		root.add_child(_attribution_overlay(data.attribution.to_short_text()))
 	_set_owner_recursive(root, root)
 	return root
+
+
+static func _add_osm_nodes(root: Node3D, data: BuildData) -> void:
+	# Meshes are in the root's space, so these nodes keep identity transforms.
+	if not data.building_meshes.is_empty():
+		var buildings := Node3D.new()
+		buildings.name = "Buildings"
+		root.add_child(buildings)
+		var mat := data.building_material
+		if mat == null:
+			mat = _plain_material(BUILDING_COLOR, 0.9)
+		for i in data.building_meshes.size():
+			var mi := MeshInstance3D.new()
+			mi.name = data.building_names[i].capitalize().replace(" ", "_")
+			mi.mesh = data.building_meshes[i]
+			mi.set_surface_override_material(0, mat)
+			buildings.add_child(mi)
+			if data.building_shapes[i] != null:
+				var body := StaticBody3D.new()
+				body.name = "StaticBody3D"
+				mi.add_child(body)
+				var shape := CollisionShape3D.new()
+				shape.name = "CollisionShape3D"
+				shape.shape = data.building_shapes[i]
+				body.add_child(shape)
+	if not data.road_meshes.is_empty():
+		var roads := Node3D.new()
+		roads.name = "Roads"
+		root.add_child(roads)
+		for i in data.road_meshes.size():
+			var cls := data.road_classes[i]
+			var mat: Material = data.road_materials.get(cls)
+			if mat == null:
+				mat = _plain_material(GwRoadBuilder.CLASS_COLORS.get(cls, Color.GRAY), 0.95)
+			var mi := MeshInstance3D.new()
+			mi.name = cls.capitalize()
+			mi.mesh = data.road_meshes[i]
+			mi.set_surface_override_material(0, mat)
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			roads.add_child(mi)
 
 
 static func _imagery_material(
@@ -580,6 +818,15 @@ static func _remove_old_chunks(dir_path: String) -> void:
 		return
 	for f in dir.get_files():
 		if f.begins_with("chunk_"):
+			dir.remove(f)
+
+
+static func _remove_files(dir_path: String, suffix: String) -> void:
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return
+	for f in dir.get_files():
+		if f.ends_with(suffix):
 			dir.remove(f)
 
 

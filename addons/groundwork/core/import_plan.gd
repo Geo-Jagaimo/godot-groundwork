@@ -9,6 +9,8 @@ const WARN_EXTENT_M := 20000.0
 const MAX_EXTENT_M := 50000.0
 const WARN_LATITUDE := 60.0
 const WARN_TRIANGLES := 10000000
+## Largest area for one OpenStreetMap (Overpass) query.
+const MAX_OSM_AREA_KM2 := 25.0
 ## Hard limit on heightfield samples per side (memory guard).
 const MAX_GRID_SIDE := 16384
 
@@ -62,6 +64,18 @@ func imagery_tile_list() -> Array[Vector3i]:
 	return GwTileMath.tiles_in_range(imagery_tiles, imagery_zoom)
 
 
+## Overpass endpoints to try, in order.
+func osm_endpoints() -> Array[GwTileProvider]:
+	var out: Array[GwTileProvider] = []
+	if request.osm_provider != null:
+		out.append(request.osm_provider)
+	if request.osm_provider == null or request.osm_use_fallbacks:
+		for p in GwProviderRegistry.list_providers(GwTileProvider.Kind.VECTOR):
+			if out.all(func(q: GwTileProvider) -> bool: return q.id != p.id):
+				out.append(p)
+	return out
+
+
 func imagery_zoom_scale() -> float:
 	return pow(2.0, imagery_zoom - elevation_zoom) if imagery_zoom >= 0 else 0.0
 
@@ -90,6 +104,13 @@ func describe() -> String:
 	parts.append("elevation z%d: %d tiles" % [elevation_zoom, elevation_tiles.get_area()])
 	if imagery_zoom >= 0:
 		parts.append("imagery z%d: %d tiles" % [imagery_zoom, imagery_tiles.get_area()])
+	if request.includes_osm():
+		var what := PackedStringArray()
+		if request.include_buildings:
+			what.append("buildings")
+		if request.include_roads:
+			what.append("roads")
+		parts.append("OSM %s" % " + ".join(what))
 	parts.append("%d chunks" % chunk_count())
 	parts.append("%s triangles" % _si(triangle_count))
 	var mb := estimated_download_bytes / 1.0e6
@@ -215,6 +236,21 @@ func _compute(api_keys: Dictionary) -> void:
 					% [tex_side, compositor.max_texture_size]
 				)
 			)
+
+	if req.includes_osm():
+		_check_osm()
+
+
+func _check_osm() -> void:
+	var area := request.bbox.area_km2()
+	if area > MAX_OSM_AREA_KM2:
+		var limit := (
+			"Buildings and roads are limited to %.0f km² (selected: %.1f km²)."
+			% [MAX_OSM_AREA_KM2, area]
+		)
+		errors.append(limit + " Select a smaller area or turn them off.")
+	if osm_endpoints().is_empty():
+		errors.append("No Overpass endpoint available for buildings and roads.")
 
 
 func _check_provider(provider: GwTileProvider, api_keys: Dictionary) -> void:

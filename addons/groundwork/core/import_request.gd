@@ -27,13 +27,28 @@ extends Resource
 @export var add_attribution_label := true
 @export var overwrite := false
 
-@export_group("OSM (v0.2)")
+@export_group("OpenStreetMap")
+## Extruded buildings with collision.
 @export var include_buildings := false
+## Road ribbons draped over the terrain (no collision of their own).
 @export var include_roads := false
+## Overpass endpoint (a VECTOR provider). Null uses the first preset.
+@export var osm_provider: GwTileProvider
+## Try the other Overpass presets when the endpoint fails.
+@export var osm_use_fallbacks := true
+## Used when a building has neither height nor building:levels.
+@export_range(1.0, 200.0, 0.5, "suffix:m") var building_default_height_m := 6.0
+@export_range(1.0, 10.0, 0.1, "suffix:m") var building_level_height_m := 3.0
+## highway=* value -> width in metres, overriding GwRoadBuilder.DEFAULT_WIDTHS.
+@export var road_widths := {}
 
 
 func get_output_folder() -> String:
 	return output_dir.path_join(import_name)
+
+
+func includes_osm() -> bool:
+	return include_buildings or include_roads
 
 
 func get_scene_path() -> String:

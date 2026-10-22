@@ -112,3 +112,28 @@ func test_decimation() -> void:
 	assert_float(plan.cell_size_m).is_equal_approx(
 		GwTileMath.ground_resolution(35.36, 14) * 2, 0.02
 	)
+
+
+func test_osm_area_limit() -> void:
+	var req := _request(6000.0)
+	assert_bool(GwImportPlan.from_request(req).is_valid()).is_true()
+	req.include_buildings = true
+	var plan := GwImportPlan.from_request(req)
+	assert_bool(plan.is_valid()).is_false()
+	assert_str(plan.errors[0]).contains("km²")
+	req.bbox = GwGeoBBox.from_center_size(35.36, 138.73, 4000.0, 4000.0)
+	assert_bool(GwImportPlan.from_request(req).is_valid()).is_true()
+
+
+func test_osm_endpoints_order() -> void:
+	var req := _request()
+	req.include_roads = true
+	var custom := _provider(GwTileProvider.Kind.VECTOR)
+	custom.id = "custom_overpass"
+	req.osm_provider = custom
+	req.osm_use_fallbacks = false
+	assert_int(GwImportPlan.from_request(req).osm_endpoints().size()).is_equal(1)
+	req.osm_use_fallbacks = true
+	var endpoints := GwImportPlan.from_request(req).osm_endpoints()
+	assert_str(endpoints[0].id).is_equal("custom_overpass")
+	assert_int(endpoints.size()).is_greater(1)
