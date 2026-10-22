@@ -13,8 +13,6 @@ GDScript のみで実装しており、GDExtension・GDAL・他のアドオン�
 
 <sub>渋谷駅周辺。建物・道路 © OpenStreetMap contributors (ODbL)。出典：国土地理院「地理院タイル（標高タイル DEM5A、全国最新写真（シームレス））」を加工して作成</sub>
 
-> Godot-Groundwork は非公式のコミュニティプロジェクトであり、Godot Foundation とは無関係です。
-
 ## クイックスタート
 
 1. `addons/groundwork/` をプロジェクトにコピーし、*プロジェクト → プロジェクト設定 → プラグイン*
