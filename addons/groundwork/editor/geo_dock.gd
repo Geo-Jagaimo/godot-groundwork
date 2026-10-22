@@ -238,6 +238,8 @@ func _start_import(req: GwImportRequest) -> void:
 	_builder = null
 	_last_result = result
 	panel.set_busy(false)
+	# Refresh the plan first: set_plan() replaces the message area.
+	_update_plan()
 	panel.show_result(result)
 	_update_cache_label()
 	if result.ok:
@@ -245,7 +247,6 @@ func _start_import(req: GwImportRequest) -> void:
 		efs.scan()
 		if result.scene_path in EditorInterface.get_open_scenes():
 			EditorInterface.reload_scene_from_path(result.scene_path)
-	_update_plan()
 
 
 func _on_cancel_requested() -> void:
