@@ -69,6 +69,13 @@ func sample(local_xz: Vector2) -> float:
 	return h11 + (h01 - h11) * (1.0 - u) + (h10 - h11) * (1.0 - v)
 
 
+## Normal of the nearest sample to a local XZ position.
+func sample_normal(local_xz: Vector2) -> Vector3:
+	var c := clampi(roundi((local_xz.x - origin.x) / cell_size), 0, width - 1)
+	var r := clampi(roundi((local_xz.y - origin.y) / cell_size), 0, height - 1)
+	return normal_at(c, r)
+
+
 ## Surface normal at sample (c, r) by central differences (one-sided at edges).
 func normal_at(c: int, r: int) -> Vector3:
 	var cl := maxi(c - 1, 0)
