@@ -17,6 +17,7 @@ var bbox: GwGeoBBox
 
 var _elevation: Array[GwTileProvider] = []
 var _imagery: Array[GwTileProvider] = []
+var _overpass: Array[GwTileProvider] = []
 var _name_edit: LineEdit
 var _dir_edit: LineEdit
 var _dir_dialog: EditorFileDialog
@@ -28,6 +29,10 @@ var _chunk_option: OptionButton
 var _decim_option: OptionButton
 var _collision_check: CheckBox
 var _label_check: CheckBox
+var _buildings_check: CheckBox
+var _roads_check: CheckBox
+var _osm_option: OptionButton
+var _height_spin: SpinBox
 var _estimate: Label
 var _messages: RichTextLabel
 var _import_button: Button
@@ -118,6 +123,43 @@ func _init() -> void:
 	_label_check.toggled.connect(_emit_changed.unbind(1))
 	_row(grid, "", _label_check)
 
+	var osm_title := Label.new()
+	osm_title.text = "OpenStreetMap"
+	osm_title.add_theme_color_override("font_color", Color(0.75, 0.78, 0.82))
+	grid.add_child(osm_title)
+	# Keep the two-column grid aligned.
+	grid.add_child(Control.new())
+	var osm_row := HBoxContainer.new()
+	_buildings_check = CheckBox.new()
+	_buildings_check.text = "Buildings"
+	_buildings_check.tooltip_text = "Extruded buildings with collision (flat roofs)."
+	_buildings_check.toggled.connect(_on_osm_toggled.unbind(1))
+	osm_row.add_child(_buildings_check)
+	_roads_check = CheckBox.new()
+	_roads_check.text = "Roads"
+	_roads_check.tooltip_text = "Roads draped over the terrain (no collision of their own)."
+	_roads_check.toggled.connect(_on_osm_toggled.unbind(1))
+	osm_row.add_child(_roads_check)
+	_row(grid, "", osm_row)
+
+	_osm_option = OptionButton.new()
+	_osm_option.fit_to_longest_item = false
+	_osm_option.clip_text = true
+	_osm_option.tooltip_text = "Overpass API server. The others are tried if it fails."
+	_osm_option.item_selected.connect(_emit_changed.unbind(1))
+	_row(grid, "Overpass", _osm_option)
+
+	_height_spin = SpinBox.new()
+	_height_spin.min_value = 1.0
+	_height_spin.max_value = 200.0
+	_height_spin.step = 0.5
+	_height_spin.value = 6.0
+	_height_spin.suffix = "m"
+	_height_spin.tooltip_text = "Height of buildings without height or building:levels tags."
+	_height_spin.value_changed.connect(_emit_changed.unbind(1))
+	_row(grid, "Default height", _height_spin)
+	_update_osm_rows()
+
 	add_child(HSeparator.new())
 	_estimate = Label.new()
 	_estimate.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -192,10 +234,13 @@ func reload_providers() -> void:
 		elev_id = SettingsBridge.project_default(SettingsBridge.DEFAULT_ELEVATION, "terrarium_aws")
 	if img_id.is_empty():
 		img_id = SettingsBridge.project_default(SettingsBridge.DEFAULT_IMAGERY, "")
+	var osm_id := _selected_id(_overpass, _osm_option)
 	_elevation = GwProviderRegistry.list_providers(GwTileProvider.Kind.ELEVATION)
 	_imagery = GwProviderRegistry.list_providers(GwTileProvider.Kind.IMAGERY)
+	_overpass = GwProviderRegistry.list_providers(GwTileProvider.Kind.VECTOR)
 	_fill(_elev_option, _elevation, elev_id, false)
 	_fill(_img_option, _imagery, img_id, true)
+	_fill(_osm_option, _overpass, osm_id, false)
 	_emit_changed()
 
 
@@ -208,6 +253,7 @@ func all_providers() -> Array[GwTileProvider]:
 	var out: Array[GwTileProvider] = []
 	out.append_array(_elevation)
 	out.append_array(_imagery)
+	out.append_array(_overpass)
 	return out
 
 
@@ -224,6 +270,10 @@ func build_request() -> GwImportRequest:
 	req.mesh_decimation = DECIMATIONS[maxi(_decim_option.selected, 0)]
 	req.generate_collision = _collision_check.button_pressed
 	req.add_attribution_label = _label_check.button_pressed
+	req.include_buildings = _buildings_check.button_pressed
+	req.include_roads = _roads_check.button_pressed
+	req.osm_provider = _provider_at(_overpass, _osm_option, false)
+	req.building_default_height_m = _height_spin.value
 	return req
 
 
@@ -240,6 +290,12 @@ func apply_request(req: GwImportRequest) -> void:
 	if req.elevation_provider:
 		_fill(_elev_option, _elevation, req.elevation_provider.id, false)
 	_fill(_img_option, _imagery, req.imagery_provider.id if req.imagery_provider else "", true)
+	_buildings_check.set_pressed_no_signal(req.include_buildings)
+	_roads_check.set_pressed_no_signal(req.include_roads)
+	if req.osm_provider:
+		_fill(_osm_option, _overpass, req.osm_provider.id, false)
+	_height_spin.set_value_no_signal(req.building_default_height_m)
+	_update_osm_rows()
 	bbox = req.bbox
 	_emit_changed()
 
@@ -271,9 +327,16 @@ func set_busy(busy: bool) -> void:
 
 
 func set_progress(stage: String, done: int, total: int) -> void:
-	_progress.max_value = maxi(total, 1)
+	var label := GwWorldBuilder.stage_label(stage)
+	if total <= 0:
+		# Unknown total (OpenStreetMap download): show the size so far.
+		_progress.max_value = 1
+		_progress.value = 0
+		_stage.text = "%s  %.1f MB" % [label, done / 1.0e6]
+		return
+	_progress.max_value = total
 	_progress.value = done
-	_stage.text = "%s  %d / %d" % [GwWorldBuilder.stage_label(stage), done, total]
+	_stage.text = "%s  %d / %d" % [label, done, total]
 
 
 func show_result(result: GwImportResult) -> void:
@@ -296,6 +359,17 @@ func show_result(result: GwImportResult) -> void:
 func _update_buttons() -> void:
 	_import_button.disabled = _busy or not _plan_ok
 	_cancel_button.disabled = not _busy
+
+
+func _on_osm_toggled() -> void:
+	_update_osm_rows()
+	_emit_changed()
+
+
+func _update_osm_rows() -> void:
+	var on := _buildings_check.button_pressed or _roads_check.button_pressed
+	_osm_option.disabled = not on
+	_height_spin.editable = _buildings_check.button_pressed
 
 
 func _browse_dir() -> void:
