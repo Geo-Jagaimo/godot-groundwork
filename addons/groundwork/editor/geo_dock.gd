@@ -273,6 +273,9 @@ func _on_instance_requested() -> void:
 	if scene_root == null:
 		_on_open_requested()
 		return
+	if scene_root.scene_file_path == _last_result.scene_path:
+		_show_status("This is the imported scene itself; open another scene to add it to.")
+		return
 	var packed := ResourceLoader.load(_last_result.scene_path, "PackedScene") as PackedScene
 	if packed == null:
 		return
