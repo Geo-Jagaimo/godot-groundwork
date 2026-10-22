@@ -157,19 +157,19 @@ func fill_nodata(max_iterations: int = 32) -> int:
 	return pending.size()
 
 
-## Every [param step]-th sample in both directions. Origin is unchanged.
+## Every [param step]-th sample in both directions. Origin is unchanged. When
+## the size is not a multiple of the step, one more row / column is added so the
+## whole area stays covered; it repeats the edge heights.
 func decimated(step: int) -> GwHeightfield:
 	if step <= 1:
 		return self
-	@warning_ignore("integer_division")
-	var w := (width - 1) / step + 1
-	@warning_ignore("integer_division")
-	var h := (height - 1) / step + 1
+	var w := ceili((width - 1) / float(step)) + 1
+	var h := ceili((height - 1) / float(step)) + 1
 	var out := GwHeightfield.create(w, h, cell_size * step, origin)
 	for r in h:
-		var src_row := r * step * width
+		var src_row := mini(r * step, height - 1) * width
 		for c in w:
-			out.data[r * w + c] = data[src_row + c * step]
+			out.data[r * w + c] = data[src_row + mini(c * step, width - 1)]
 	out.min_height = min_height
 	out.max_height = max_height
 	return out

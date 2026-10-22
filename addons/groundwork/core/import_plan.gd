@@ -174,10 +174,9 @@ func _compute(api_keys: Dictionary) -> void:
 	decimation = clampi(req.mesh_decimation, 1, 4)
 	var raw_w := elevation_tiles.size.x * GwTileMath.TILE_SIZE
 	var raw_h := elevation_tiles.size.y * GwTileMath.TILE_SIZE
-	@warning_ignore("integer_division")
-	grid_width = (raw_w - 1) / decimation + 1
-	@warning_ignore("integer_division")
-	grid_height = (raw_h - 1) / decimation + 1
+	# Same sizes as GwHeightfield.decimated().
+	grid_width = ceili((raw_w - 1) / float(decimation)) + 1
+	grid_height = ceili((raw_h - 1) / float(decimation)) + 1
 	var raw_cell := GwTileMath.mercator_pixel_size(elevation_zoom) * scale_k
 	cell_size_m = raw_cell * decimation
 	if absf(raw_cell - req.target_resolution_m) / req.target_resolution_m > 0.6:

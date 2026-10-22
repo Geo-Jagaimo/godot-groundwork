@@ -99,3 +99,12 @@ func test_decimated() -> void:
 	assert_vector(d.origin).is_equal(hf.origin)
 	assert_float(d.get_height(4, 2)).is_equal(hf.get_height(8, 4))
 	assert_object(hf.decimated(1)).is_same(hf)
+
+
+func test_decimated_keeps_the_far_edge() -> void:
+	# 10 samples, step 4: 0, 4, 8 and one more that repeats sample 9.
+	var hf := _ramp(10, 10, 1.0)
+	var d := hf.decimated(4)
+	assert_int(d.width).is_equal(4)
+	assert_float(d.get_height(3, 0)).is_equal(hf.get_height(9, 0))
+	assert_float((d.width - 1) * d.cell_size).is_greater_equal((hf.width - 1) * hf.cell_size)

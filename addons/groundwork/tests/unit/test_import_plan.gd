@@ -108,7 +108,11 @@ func test_decimation() -> void:
 	var req := _request()
 	req.mesh_decimation = 2
 	var plan := GwImportPlan.from_request(req)
-	assert_int(plan.grid_width).is_equal((plan.elevation_tiles.size.x * 256 - 1) / 2 + 1)
+	assert_int(plan.grid_width).is_equal(plan.elevation_tiles.size.x * 128 + 1)
+	# The decimated grid reaches at least as far as the full one.
+	var extent := (plan.grid_width - 1) * plan.cell_size_m
+	var full := (plan.elevation_tiles.size.x * 256 - 1) * plan.cell_size_m / 2.0
+	assert_float(extent).is_greater_equal(full)
 	assert_float(plan.cell_size_m).is_equal_approx(
 		GwTileMath.ground_resolution(35.36, 14) * 2, 0.02
 	)
