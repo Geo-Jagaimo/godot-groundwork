@@ -62,10 +62,15 @@ func search(text: String) -> Dictionary:
 	if _cache.has(q):
 		return _cache[q]
 	var tree := Engine.get_main_loop() as SceneTree
-	var wait := _last_request_msec + MIN_INTERVAL_MSEC - Time.get_ticks_msec()
-	if wait > 0:
-		await tree.create_timer(wait / 1000.0).timeout
-	_last_request_msec = Time.get_ticks_msec()
+	# Reserve the next free slot before waiting, so overlapping searches queue
+	# up one second apart instead of firing together.
+	var now := Time.get_ticks_msec()
+	var slot := maxi(now, _last_request_msec + MIN_INTERVAL_MSEC)
+	_last_request_msec = slot
+	if slot > now:
+		await tree.create_timer((slot - now) / 1000.0).timeout
+		if _cache.has(q):
+			return _cache[q]
 
 	var req := HTTPRequest.new()
 	req.timeout = 15.0

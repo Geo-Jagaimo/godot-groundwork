@@ -22,6 +22,7 @@ var _geocoder: GwGeocoder
 var _builder: GwWorldBuilder
 var _last_result: GwImportResult
 var _pending_request: GwImportRequest
+var _searching := false
 
 
 func _init() -> void:
@@ -187,8 +188,12 @@ func _on_search(text: String) -> void:
 				"Place search is disabled (Editor Settings > groundwork/geocoder/enabled)."
 			)
 			return
+		if _searching:
+			return
+		_searching = true
 		_show_status("Searching…")
 		hit = await _geocoder.search(text)
+		_searching = false
 	if hit.is_empty():
 		_show_status('Nothing found for "%s".' % text)
 		return
