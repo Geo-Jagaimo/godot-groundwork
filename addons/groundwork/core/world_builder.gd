@@ -34,6 +34,9 @@ const STAGE_LABELS := {
 const BUILDING_COLOR := Color(0.82, 0.8, 0.77)
 ## Main-thread work items between yields to keep the editor responsive.
 const MAIN_THREAD_BATCH := 4
+## Stages that write files. A cancel is no longer honoured once they start, so
+## the output folder is never left half-written.
+const WRITE_STAGES: Array[String] = ["save", "import", "scene"]
 
 
 ## Generated data, before anything is written to disk.
@@ -80,8 +83,9 @@ static func stage_label(stage: String) -> String:
 	return STAGE_LABELS.get(stage, stage.capitalize())
 
 
-## Cancels the running build (or the next one, if none is running). The builder
-## can be used again afterwards.
+## Cancels the running build (or the next one, if none is running), unless it is
+## already writing files (see [constant WRITE_STAGES]). The builder can be used
+## again afterwards.
 func cancel() -> void:
 	token.cancel()
 
@@ -110,7 +114,9 @@ func build(request: GwImportRequest) -> GwImportResult:
 	logger.info(plan.describe())
 
 	var data: BuildData = await _generate(plan, result)
-	if data != null:
+	if data != null and token.is_cancelled():
+		result.fail(GwImportResult.ErrorCode.CANCELLED, "Import cancelled.")
+	elif data != null:
 		await _save(plan, data, result)
 	return _finish(result, started)
 

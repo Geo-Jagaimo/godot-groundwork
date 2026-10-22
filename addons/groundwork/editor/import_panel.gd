@@ -328,6 +328,8 @@ func set_busy(busy: bool) -> void:
 
 func set_progress(stage: String, done: int, total: int) -> void:
 	var label := GwWorldBuilder.stage_label(stage)
+	# The builder ignores Cancel while writing files; say so with the button.
+	_cancel_button.disabled = not _busy or stage in GwWorldBuilder.WRITE_STAGES
 	if total <= 0:
 		# Unknown total (OpenStreetMap download): show the size so far.
 		_progress.max_value = 1
