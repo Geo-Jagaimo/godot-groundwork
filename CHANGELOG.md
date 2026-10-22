@@ -25,6 +25,28 @@ OpenStreetMap buildings and roads.
 - Materials for buildings and road classes saved as `.tres` and kept on re-import.
 - OpenStreetMap / ODbL attribution in `ATTRIBUTION.md` and the scene label.
 
+### Fixed
+
+- Tile ranges lost a row or column when an edge lay just inside a tile boundary.
+- Decimated meshes stopped short of the east / south edge.
+- NoData far from valid data is filled with the lowest height inside the area, not
+  of the surrounding margin tiles.
+- `georef.tres` and the dock's saved selection keep coordinates at full precision.
+- Elevation tiles that are not 256 px (e.g. 512 px) are resampled instead of
+  becoming NoData.
+- Without any imagery the terrain falls back to elevation colours instead of grey.
+- Re-imports keep the user's texture import settings and only remove files the
+  new import no longer uses.
+- Non-image responses (e.g. captive portals) are no longer cached as tiles; a 429
+  pauses all requests and honours `Retry-After`; DNS failures are not retried.
+- Overlapping place searches respect Nominatim's one request per second.
+- The dock keeps the import result visible, keeps imports running when it is
+  moved, refuses to add a scene to itself, and fixes selection edits on tiny or
+  chorded drags. Failed basemap tiles are retried and visible tiles stay cached.
+- Cancel is disabled while files are written; a builder can be reused after a
+  cancel; in-memory builds fill in the attribution; texture import and
+  `ATTRIBUTION.md` failures are reported.
+
 ## [0.1.0] - unreleased
 
 First version: real-world terrain from tile services, generated in the editor.
