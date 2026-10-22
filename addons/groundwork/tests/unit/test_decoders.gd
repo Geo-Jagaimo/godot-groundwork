@@ -49,9 +49,23 @@ func test_gsi_nodata() -> void:
 
 
 func test_decode_bytes_png() -> void:
-	var img := _image([_rgb(128, 0, 0), _rgb(129, 0, 0)])
+	var img := Image.create_empty(256, 256, false, Image.FORMAT_RGB8)
+	img.fill(_rgb(128, 0, 0))
+	img.set_pixel(1, 0, _rgb(129, 0, 0))
 	var h := GwTerrariumDecoder.new().decode_bytes(img.save_png_to_buffer())
-	assert_array(Array(h)).is_equal([0.0, 256.0])
+	assert_int(h.size()).is_equal(256 * 256)
+	assert_float(h[0]).is_equal(0.0)
+	assert_float(h[1]).is_equal(256.0)
+
+
+func test_decode_bytes_resamples_other_tile_sizes() -> void:
+	var img := Image.create_empty(512, 512, false, Image.FORMAT_RGB8)
+	img.fill(_rgb(129, 0, 0))
+	img.set_pixel(511, 511, _rgb(130, 0, 0))
+	var h := GwTerrariumDecoder.new().decode_bytes(img.save_png_to_buffer())
+	assert_int(h.size()).is_equal(256 * 256)
+	assert_float(h[0]).is_equal(256.0)
+	assert_float(h[256 * 256 - 1]).is_equal(512.0)
 
 
 func test_decode_bytes_garbage() -> void:
