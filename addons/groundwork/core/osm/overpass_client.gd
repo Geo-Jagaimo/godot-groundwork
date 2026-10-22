@@ -25,13 +25,22 @@ var downloaded_bytes := 0
 
 ## Overpass QL for the requested feature types inside [param bbox].
 static func build_query(
-	bbox: GwGeoBBox, buildings: bool, roads: bool, timeout_sec: int = 60
+	bbox: GwGeoBBox, buildings: bool, roads: bool, timeout_sec: int = 60, water: bool = false
 ) -> String:
 	var parts := PackedStringArray()
 	if buildings:
 		parts.append('way["building"];relation["building"]["type"="multipolygon"];')
 	if roads:
 		parts.append('way["highway"];')
+	if water:
+		parts.append(
+			(
+				'way["natural"="water"];relation["natural"="water"]["type"="multipolygon"];'
+				+ 'way["waterway"="riverbank"];relation["waterway"="riverbank"];'
+				+ 'way["landuse"~"^(reservoir|basin)$"];'
+				+ 'way["waterway"~"^(river|stream|canal|drain|ditch)$"];'
+			)
+		)
 	return (
 		"[out:json][timeout:%d][bbox:%.7f,%.7f,%.7f,%.7f];(%s);out geom;"
 		% [timeout_sec, bbox.south, bbox.west, bbox.north, bbox.east, "".join(parts)]

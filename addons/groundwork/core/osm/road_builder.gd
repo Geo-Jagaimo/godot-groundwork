@@ -153,12 +153,14 @@ static func build(
 		# A tiny per-road offset reduces z-fighting where same-class roads cross.
 		var lift := class_lift + (r_index % 4) * 0.004
 		for run in clip(resample(road.points), rect):
-			_add_ribbon(run, half, lift, hf, verts, normals, uvs, indices)
+			add_ribbon(run, half, lift, hf, verts, normals, uvs, indices)
 			built += 1
 	return {"arrays": GwMeshUtil.surface_arrays(verts, normals, uvs, indices), "built": built}
 
 
-static func _add_ribbon(
+## Appends a ribbon of half-width [param half] along [param pts], draped over
+## [param hf] and lifted by [param lift] metres.
+static func add_ribbon(
 	pts: PackedVector2Array,
 	half: float,
 	lift: float,
