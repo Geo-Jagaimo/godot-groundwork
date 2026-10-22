@@ -208,8 +208,12 @@ func _on_request_completed(
 		job.request = null
 	_running -= 1
 	if result == HTTPRequest.RESULT_SUCCESS and code == 200 and not body.is_empty():
-		cache.store(job.provider, job.tile, body)
-		_complete(job, Status.OK, body)
+		if _expects_image(job.provider) and not GwImageUtil.looks_like_image(body):
+			# e.g. a captive portal answering with HTML: do not cache it as a tile.
+			_complete(job, Status.FAILED, PackedByteArray())
+		else:
+			cache.store(job.provider, job.tile, body)
+			_complete(job, Status.OK, body)
 	elif result == HTTPRequest.RESULT_SUCCESS and code in [204, 404, 410]:
 		cache.store_missing(job.provider, job.tile)
 		_complete(job, Status.MISSING, PackedByteArray())
@@ -258,6 +262,10 @@ func _acquire() -> HTTPRequest:
 func _release(req: HTTPRequest) -> void:
 	if is_instance_valid(req):
 		_idle.append(req)
+
+
+static func _expects_image(provider: GwTileProvider) -> bool:
+	return provider.tile_extension() in ["png", "jpg", "jpeg", "webp"]
 
 
 static func _is_retryable(result: int, code: int) -> bool:

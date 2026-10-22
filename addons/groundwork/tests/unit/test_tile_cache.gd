@@ -38,3 +38,11 @@ func test_cache_store_lookup() -> void:
 	assert_int(cache.get_size_bytes()).is_equal(3)
 	p.cacheable = false
 	assert_int(cache.lookup(p, t).status).is_equal(GwTileCache.Status.MISS)
+
+
+func test_looks_like_image() -> void:
+	var img := Image.create_empty(4, 4, false, Image.FORMAT_RGB8)
+	assert_bool(GwImageUtil.looks_like_image(img.save_png_to_buffer())).is_true()
+	assert_bool(GwImageUtil.looks_like_image(img.save_jpg_to_buffer())).is_true()
+	var html := "<html><body>Please log in</body></html>".to_utf8_buffer()
+	assert_bool(GwImageUtil.looks_like_image(html)).is_false()
