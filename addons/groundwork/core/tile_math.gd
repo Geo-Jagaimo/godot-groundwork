@@ -65,27 +65,27 @@ static func tile_bounds(x: int, y: int, z: int) -> Vector4:
 	)
 
 
-## Ground resolution [m/px] at [param lat] for 256 px tiles.
-static func ground_resolution(lat: float, z: int) -> float:
-	return EQUATOR_RESOLUTION * cos(deg_to_rad(lat)) / float(1 << z)
+## Ground resolution [m/px] at [param lat] for tiles of [param tile_size] px.
+static func ground_resolution(lat: float, z: int, tile_size: int = TILE_SIZE) -> float:
+	return EQUATOR_RESOLUTION * cos(deg_to_rad(lat)) / float(1 << z) * TILE_SIZE / tile_size
 
 
-## Size of one world pixel at zoom [param z] in mercator metres (not scaled by latitude).
-static func mercator_pixel_size(z: int) -> float:
-	return EQUATOR_RESOLUTION / float(1 << z)
+## Size of one tile pixel at zoom [param z] in mercator metres (not scaled by latitude).
+static func mercator_pixel_size(z: int, tile_size: int = TILE_SIZE) -> float:
+	return EQUATOR_RESOLUTION / float(1 << z) * TILE_SIZE / tile_size
 
 
 ## Zoom whose ground resolution at [param lat] is closest to [param target_m]
 ## (compared on a log scale), clamped to [min_zoom, max_zoom].
 static func resolution_to_zoom(
-	target_m: float, lat: float, min_zoom: int = 0, max_zoom: int = 22
+	target_m: float, lat: float, min_zoom: int = 0, max_zoom: int = 22, tile_size: int = TILE_SIZE
 ) -> int:
 	if target_m <= 0.0:
 		return max_zoom
 	var best := min_zoom
 	var best_score := INF
 	for z in range(min_zoom, max_zoom + 1):
-		var score := absf(log(ground_resolution(lat, z) / target_m))
+		var score := absf(log(ground_resolution(lat, z, tile_size) / target_m))
 		if score < best_score:
 			best_score = score
 			best = z

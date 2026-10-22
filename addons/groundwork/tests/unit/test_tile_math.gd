@@ -38,6 +38,16 @@ func test_ground_resolution() -> void:
 	assert_float(GwTileMath.ground_resolution(35.0, 14)).is_equal_approx(7.827, 0.01)
 
 
+func test_512_px_tiles() -> void:
+	# A 512 px tile has twice the resolution of a 256 px tile at the same zoom.
+	var r256 := GwTileMath.ground_resolution(35.0, 14)
+	assert_float(GwTileMath.ground_resolution(35.0, 14, 512)).is_equal_approx(r256 / 2.0, 1e-9)
+	assert_float(GwTileMath.mercator_pixel_size(10, 512)).is_equal_approx(
+		GwTileMath.mercator_pixel_size(11), 1e-9
+	)
+	assert_int(GwTileMath.resolution_to_zoom(10.0, 35.0, 0, 22, 512)).is_equal(13)
+
+
 func test_resolution_to_zoom() -> void:
 	# 10 m at 35°N: z14 (7.8 m) is closer than z13 (15.7 m).
 	assert_int(GwTileMath.resolution_to_zoom(10.0, 35.0)).is_equal(14)

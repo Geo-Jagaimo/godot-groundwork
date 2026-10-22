@@ -19,13 +19,21 @@ var background := Color(0.45, 0.45, 0.42)
 
 ## [param origin_tile] is the first elevation tile (x, y) of the heightfield;
 ## [param zoom_scale] is 2^(imagery_zoom - elevation_zoom);
-## [param step] is the heightfield decimation.
-static func create(origin_tile: Vector2i, zoom_scale: float, step: int) -> GwImageryCompositor:
+## [param step] is the heightfield decimation;
+## [param elevation_tile_size] is the pixel size of the elevation tiles.
+static func create(
+	origin_tile: Vector2i,
+	zoom_scale: float,
+	step: int,
+	elevation_tile_size: int = GwTileMath.TILE_SIZE
+) -> GwImageryCompositor:
 	var c := GwImageryCompositor.new()
-	var size := GwTileMath.TILE_SIZE
-	c.origin_px_x = (origin_tile.x * size + 0.5) * zoom_scale
-	c.origin_px_y = (origin_tile.y * size + 0.5) * zoom_scale
-	c.px_per_cell = zoom_scale * step
+	var ets := float(elevation_tile_size)
+	# Imagery pixels (256 px tiles) per elevation pixel.
+	var ratio := zoom_scale * GwTileMath.TILE_SIZE / ets
+	c.origin_px_x = (origin_tile.x * ets + 0.5) * ratio
+	c.origin_px_y = (origin_tile.y * ets + 0.5) * ratio
+	c.px_per_cell = ratio * step
 	return c
 
 

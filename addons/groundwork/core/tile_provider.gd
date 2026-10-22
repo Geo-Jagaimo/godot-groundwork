@@ -19,6 +19,9 @@ enum Decoder { NONE, TERRARIUM, GSI_DEM }
 @export var url_template := ""
 @export var min_zoom := 0
 @export var max_zoom := 15
+## Tile width in pixels (256, or 512 for "retina" tiles). Elevation tiles of
+## this size are used at full resolution.
+@export var tile_size := 256
 @export var decoder := Decoder.NONE
 @export var requires_api_key := false
 ## Attribution text that must be shown wherever the data is used.
