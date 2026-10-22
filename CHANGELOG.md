@@ -6,6 +6,30 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - unreleased
+
+Distance LOD, courtyards, water, glTF export and runtime loading.
+
+### Added
+
+- **Distance LOD**: coarser meshes per terrain chunk (half and quarter detail by default)
+  switched by `visibility_range`, with skirts that hide cracks between levels.
+  Configurable with `lod_levels` / `lod_distance` and in the dock.
+- **Courtyards**: inner rings of multipolygon buildings are cut out of the roof, with
+  walls facing into them (bridge edges + ear clipping, `GwPolygonUtil`).
+- **Water** from OpenStreetMap: lakes, ponds, reservoirs and river areas (islands cut
+  out) draped over the terrain, and rivers / streams / canals as ribbons.
+- **glTF export** (`GwGltfExporter`, and an "Export glTF…" button in the dock): terrain,
+  buildings, roads and water with embedded textures.
+- **Runtime loading**: `GwTerrainLoader` builds a scene while the game runs, without
+  writing files; `demo/runtime.tscn` shows it.
+- **Providers**: Mapterhorn (global open elevation data, 512 px Terrarium WebP tiles) and
+  GSI DEM1A (1 m, Japan, lidar areas).
+- Elevation providers with 512 px tiles are used at full resolution
+  (`GwTileProvider.tile_size`).
+- Missing elevation tiles are cut from the closest lower zoom level (up to four levels)
+  before falling back to interpolation.
+
 ## [0.2.0] - unreleased
 
 OpenStreetMap buildings and roads.

@@ -1,9 +1,9 @@
 # Groundwork for Godot
 
 Pick an area on a map inside the Godot editor and get a **walkable scene of the real
-world** — terrain mesh, collision, aerial imagery and OpenStreetMap buildings and roads —
-built only from standard Godot nodes. Pure GDScript: no GDExtension, no GDAL, no other
-addons.
+world** — terrain mesh with distance LOD, collision, aerial imagery and OpenStreetMap
+buildings, roads and water — built only from standard Godot nodes. Export it to glTF, or
+load places while your game runs. Pure GDScript: no GDExtension, no GDAL, no other addons.
 
 ![Mt. Fuji summit imported with Groundwork for Godot](docs/preview.png)
 
@@ -34,19 +34,25 @@ Requires **Godot 4.4 or later**.
 res://geo/<name>/
 ├── <name>.tscn            GwSceneRoot (Node3D)
 │                            ├── Terrain → Chunk_XXX_YYY (MeshInstance3D)
+│                            │             ├── Lod1, Lod2 (coarser MeshInstance3D, by distance)
 │                            │             └── StaticBody3D → CollisionShape3D (HeightMapShape3D)
 │                            ├── Buildings → Chunk_XXX_YYY (MeshInstance3D) → … (ConcavePolygonShape3D)
+│                            ├── Water (MeshInstance3D)
 │                            └── Roads → Residential, Primary, … (MeshInstance3D per road class)
 ├── georef.tres            GwGeoReference: origin, scale, attribution
 ├── heightfield.res        GwHeightfield: the full elevation grid
 ├── import_request.tres    every setting, to re-import the same area
 ├── ATTRIBUTION.md         who to credit
-├── terrain/               chunk_XXX_YYY.mesh / .png / _collision.res
+├── terrain/               chunk_XXX_YYY.mesh / _lod1.mesh / .png / _collision.res
 ├── buildings/             chunk_XXX_YYY.mesh / _collision.res, building_material.tres
-└── roads/                 <class>.mesh, <class>_material.tres
+├── roads/                 <class>.mesh, <class>_material.tres
+└── water/                 water.mesh, water_material.tres
 ```
 
 - Chunks (128 cells by default) share their border vertices, so there are no seams.
+- **Distance LOD**: each chunk also gets coarser meshes (half and quarter detail by
+  default) shown by `visibility_range`; skirts along chunk borders hide the cracks
+  between levels. Collision always uses full detail.
 - Mesh and collision come from the same heights and match exactly.
 - PNG textures go through the editor's import pipeline (VRAM compressed, mipmaps).
 - A small attribution label (`CanvasLayer`) is added to the scene; keep it, or credit
@@ -65,22 +71,26 @@ var lat_lon := world.local_to_geo($Player.position)  # PackedFloat64Array [lat, 
 var h := world.sample_elevation(Vector2(pos.x, pos.z))
 ```
 
-## OpenStreetMap buildings and roads
+## OpenStreetMap buildings, roads and water
 
-Buildings and roads come from one [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API)
+Buildings, roads and water come from one [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API)
 query per import (areas up to 25 km²), cached for 7 days in `user://groundwork_cache/overpass/`.
 
 - **Buildings** are extruded with flat roofs. Height comes from `height`, else
   `building:levels` × 3 m, else 6 m (both adjustable). Walls start 0.5 m below the lowest
-  ground point so they never float on slopes. Buildings are merged per terrain chunk and
+  ground point so they never float on slopes. Courtyards (inner rings of multipolygons)
+  are cut out, with walls facing into them. Buildings are merged per terrain chunk and
   get `ConcavePolygonShape3D` collision.
 - **Roads** are ribbons draped over the terrain, with widths per `highway=*` type
   (`GwImportRequest.road_widths` overrides them) and one mesh and material per class.
   They have no collision of their own; you walk on the terrain beneath.
-- Materials are saved as `building_material.tres` and `<class>_material.tres`; edit them
-  freely — a re-import keeps your edited materials.
-- Current limits: flat roofs only; holes in multipolygon buildings are ignored; tunnels
-  and underground ways are skipped; bridges follow the terrain; crossings simply overlap.
+- **Water**: lakes, ponds, reservoirs and river areas (with islands cut out) are draped
+  just above the terrain, which already sits at the water level in most elevation data;
+  rivers, streams and canals are drawn as ribbons. No collision.
+- Materials are saved as `building_material.tres`, `<class>_material.tres` and
+  `water_material.tres`; edit them freely — a re-import keeps your edited materials.
+- Current limits: flat roofs only; tunnels and underground ways are skipped; bridges
+  follow the terrain; crossings simply overlap.
 
 The public Overpass servers are run by volunteers and are often busy. The dock tries
 overpass-api.de and then a mirror, and a failed download only skips buildings and roads.
@@ -92,11 +102,18 @@ paid Overpass server and save it in `res://groundwork_providers/`.
 | Provider | Kind | Coverage | Best resolution | Notes |
 |---|---|---|---|---|
 | Terrain Tiles (AWS, Terrarium) | elevation | global | z15 (~3.9 m at 35°N) | Mixed sources (SRTM, 3DEP, EU-DEM, …) |
-| GSI DEM5A | elevation | Japan, partial | z15 (5 m) | Gaps are filled from neighbours |
+| Mapterhorn | elevation | global | z16, 512 px (~1 m at 35°N) | Open data; resolution depends on the region ([sources](https://mapterhorn.com/attribution)) |
+| GSI DEM1A | elevation | Japan, partial | z17 (1 m) | Lidar areas only |
+| GSI DEM5A | elevation | Japan, partial | z15 (5 m) | |
 | GSI DEM10B | elevation | Japan | z14 (10 m) | |
 | GSI seamless aerial photo | imagery | Japan | z18 | |
 | OpenStreetMap, GSI pale map | basemap | — | — | Dock background only, never baked into imports |
-| Overpass API (overpass-api.de, private.coffee mirror) | buildings, roads | global | — | OpenStreetMap data, ODbL |
+| Overpass API (overpass-api.de, private.coffee mirror) | buildings, roads, water | global | — | OpenStreetMap data, ODbL |
+
+Where a provider has no tile at the chosen zoom (outside its high-resolution areas, or
+partial coverage), the tile is cut from the closest lower zoom level instead; anything
+still missing is interpolated. Providers with 512 px tiles (`GwTileProvider.tile_size`)
+are used at full resolution.
 
 A global imagery preset is not included yet: we only ship sources whose terms clearly
 allow embedding in games. You can add your own provider by saving a `GwTileProvider`
@@ -142,6 +159,36 @@ else:
 
 `GwWorldBuilder.build_nodes(req)` returns the scene in memory without writing files.
 
+### Export to glTF
+
+The dock's **Export glTF…** button (after an import), or from code:
+
+```gdscript
+var scene := (load("res://geo/shibuya/shibuya.tscn") as PackedScene).instantiate()
+GwGltfExporter.export_scene(scene, "user://shibuya.glb")
+scene.free()
+```
+
+Terrain (full detail), buildings, roads and water are exported with embedded textures;
+collision, coarser LOD levels and the attribution label are left out. Keep crediting the
+data providers wherever the exported file is used.
+
+### Loading places at runtime
+
+`GwTerrainLoader` builds a scene while the game runs, without writing files (tiles are
+cached in `user://`). See `demo/runtime.tscn`.
+
+```gdscript
+var loader := GwTerrainLoader.new()
+loader.request = GwTerrainLoader.request_around(35.3606, 138.7274, 2000.0, "mapterhorn")
+add_child(loader)
+var result: GwImportResult = await loader.build()
+if result.ok:
+	var h := loader.scene_root.sample_elevation(Vector2.ZERO)
+```
+
+Show the data attribution (`loader.scene_root.get_attribution()`) in your game.
+
 ## Settings
 
 | Where | Key | |
@@ -157,13 +204,13 @@ its size and can clear it.
 
 ## Roadmap
 
-- **v0.3+**: distance LOD, holes in buildings and pitched roofs, water and land use,
-  GeoTIFF / GeoJSON import, export adapters (Terrain3D, glTF), runtime loading.
+- **v0.4+**: pitched roofs, land use, GeoTIFF / GeoJSON import, more export adapters
+  (Terrain3D, HTerrain), coordinates in other projections (UTM, Japan plane rectangular).
 
 ## Development
 
-The repository root is a Godot project (`demo/` has a first-person controller: import an
-area named `demo`, then run the project).
+The repository root is a Godot project. `demo/main.tscn` walks around an area imported
+as `demo`; `demo/runtime.tscn` downloads a place while the game runs.
 
 ```bash
 ./tools/install_gdunit4.sh
