@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="GwTileProvider" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/groundwork/core/tile_provider.gd" id="1_provider"]
+
+[resource]
+script = ExtResource("1_provider")
+id = "gsi_pale"
+display_name = "GSI Pale (地理院 淡色)"
+kind = 3
+url_template = "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png"
+min_zoom = 2
+max_zoom = 18
+attribution = "地理院タイル（淡色地図）国土地理院 https://maps.gsi.go.jp/development/ichiran.html — background map in the editor only."
+attribution_short = "地理院タイル（国土地理院）"
+terms_url = "https://maps.gsi.go.jp/development/ichiran.html"
+cache_ttl_days = 30
+avg_tile_kb = 40.0

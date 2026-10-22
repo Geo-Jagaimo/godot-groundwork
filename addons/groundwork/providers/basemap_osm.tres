@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="GwTileProvider" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/groundwork/core/tile_provider.gd" id="1_provider"]
+
+[resource]
+script = ExtResource("1_provider")
+id = "osm_standard"
+display_name = "OpenStreetMap"
+kind = 3
+url_template = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+min_zoom = 0
+max_zoom = 19
+attribution = "© OpenStreetMap contributors (https://www.openstreetmap.org/copyright). Background map in the editor only; tiles are never baked into imports (OSMF tile usage policy)."
+attribution_short = "© OpenStreetMap contributors"
+terms_url = "https://operations.osmfoundation.org/policies/tiles/"
+cache_ttl_days = 7
+avg_tile_kb = 20.0

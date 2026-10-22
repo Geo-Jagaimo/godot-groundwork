@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="GwTileProvider" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/groundwork/core/tile_provider.gd" id="1_provider"]
+
+[resource]
+script = ExtResource("1_provider")
+id = "gsi_dem5a"
+display_name = "GSI DEM5A (Japan, 5 m, partial coverage)"
+kind = 0
+url_template = "https://cyberjapandata.gsi.go.jp/xyz/dem5a_png/{z}/{x}/{y}.png"
+min_zoom = 1
+max_zoom = 15
+decoder = 2
+attribution = "出典：国土地理院「地理院タイル（標高タイル DEM5A：基盤地図情報数値標高モデル）」を加工して作成
+https://maps.gsi.go.jp/development/ichiran.html
+Source: Geospatial Information Authority of Japan, GSI Tiles (elevation, DEM5A), processed by the user."
+attribution_short = "標高: 国土地理院 地理院タイル（標高タイル）を加工して作成"
+terms_url = "https://maps.gsi.go.jp/development/ichiran.html"
+cache_ttl_days = 90
+coverage_bbox = Vector4(20, 122, 46, 154)
+avg_tile_kb = 50.0

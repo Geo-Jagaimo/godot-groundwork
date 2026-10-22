@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="GwTileProvider" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/groundwork/core/tile_provider.gd" id="1_provider"]
+
+[resource]
+script = ExtResource("1_provider")
+id = "gsi_seamlessphoto"
+display_name = "GSI Aerial Photo (Japan, seamless)"
+kind = 1
+url_template = "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg"
+min_zoom = 2
+max_zoom = 18
+attribution = "出典：国土地理院「地理院タイル（全国最新写真（シームレス））」を加工して作成
+https://maps.gsi.go.jp/development/ichiran.html
+GRUS画像を含む範囲：GRUS画像（© Axelspace）
+Source: Geospatial Information Authority of Japan, GSI Tiles (seamless aerial photo), processed by the user."
+attribution_short = "写真: 国土地理院 地理院タイル（全国最新写真）を加工して作成"
+terms_url = "https://maps.gsi.go.jp/development/ichiran.html"
+cache_ttl_days = 90
+coverage_bbox = Vector4(20, 122, 46, 154)
+avg_tile_kb = 25.0
