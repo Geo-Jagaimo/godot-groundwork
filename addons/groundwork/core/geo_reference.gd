@@ -18,8 +18,13 @@ extends Resource
 		_update_origin_cache()
 ## cos(origin_lat), derived from the origin.
 @export var scale_k := 1.0
-## Imported area as (south, west, north, east).
-@export var bbox := Vector4.ZERO
+## Imported area as (south, west, north, east). A 32-bit view of the bounds;
+## use [method get_bbox] for full precision.
+@export var bbox := Vector4.ZERO:
+	get:
+		return Vector4(_bounds[0], _bounds[1], _bounds[2], _bounds[3])
+	set(value):
+		_bounds = PackedFloat64Array([value.x, value.y, value.z, value.w])
 @export var elevation_zoom := 0
 ## Heightfield cell spacing in approximate metres.
 @export var cell_size_m := 0.0
@@ -38,6 +43,16 @@ extends Resource
 			origin_lat = v[0]
 			origin_lon = v[1]
 
+## What is actually saved for [member bbox] (see [member origin_text]).
+@export_storage var bbox_text := "":
+	get:
+		return GwGeoBBox.format_degrees(Array(_bounds))
+	set(value):
+		var v := GwGeoBBox.parse_degrees(value, 4)
+		if not v.is_empty():
+			_bounds = v
+
+var _bounds := PackedFloat64Array([0.0, 0.0, 0.0, 0.0])
 var _origin_mx := 0.0
 var _origin_my := 0.0
 
@@ -74,11 +89,15 @@ func sample_elevation(local_xz: Vector2) -> float:
 
 
 func get_bbox() -> GwGeoBBox:
-	return GwGeoBBox.from_vector4(bbox)
+	return GwGeoBBox.from_sw_ne(_bounds[0], _bounds[1], _bounds[2], _bounds[3])
+
+
+func set_bbox(value: GwGeoBBox) -> void:
+	_bounds = PackedFloat64Array([value.south, value.west, value.north, value.east])
 
 
 func _validate_property(property: Dictionary) -> void:
-	if property.name in ["origin_lat", "origin_lon", "scale_k"]:
+	if property.name in ["origin_lat", "origin_lon", "scale_k", "bbox"]:
 		property.usage &= ~PROPERTY_USAGE_STORAGE
 	if property.name == "scale_k":
 		property.usage |= PROPERTY_USAGE_READ_ONLY

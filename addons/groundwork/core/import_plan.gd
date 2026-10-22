@@ -86,7 +86,7 @@ func chunk_count() -> int:
 
 func create_geo_reference() -> GwGeoReference:
 	var g := GwGeoReference.create(origin_lat, origin_lon)
-	g.bbox = request.bbox.to_vector4()
+	g.set_bbox(request.bbox)
 	g.elevation_zoom = elevation_zoom
 	g.cell_size_m = cell_size_m
 	return g

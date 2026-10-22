@@ -65,13 +65,15 @@ func test_text_resources_keep_full_precision() -> void:
 	# Godot 4.4 writes floats with 6 significant digits in .tres files.
 	var g := GwGeoReference.create(35.3606123456, 138.7274123456)
 	var b := GwGeoBBox.from_sw_ne(35.3471234567, 138.7112345678, 35.3741234567, 138.7436345678)
-	g.bbox = b.to_vector4()
+	g.set_bbox(b)
 	var path := "user://gw_test_precision.tres"
 	assert_int(ResourceSaver.save(g, path)).is_equal(OK)
 	var lg := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as GwGeoReference
 	assert_float(lg.origin_lat).is_equal(35.3606123456)
 	assert_float(lg.origin_lon).is_equal(138.7274123456)
 	assert_float(lg.scale_k).is_equal(cos(deg_to_rad(35.3606123456)))
+	assert_float(lg.get_bbox().east).is_equal(138.7436345678)
+	assert_float(lg.get_bbox().south).is_equal(35.3471234567)
 	assert_int(ResourceSaver.save(b, path)).is_equal(OK)
 	var lb := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE) as GwGeoBBox
 	assert_float(lb.west).is_equal(138.7112345678)
