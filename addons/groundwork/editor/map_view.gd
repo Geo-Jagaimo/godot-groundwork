@@ -17,6 +17,8 @@ const MIN_ZOOM := 1.0
 const MAX_ZOOM := 20.0
 const MAX_TEXTURES := 384
 const FALLBACK_LEVELS := 6
+## Tiles that failed to download are tried again after this long.
+const RETRY_FAILED_MSEC := 30000
 const SELECTION_FILL := Color(0.25, 0.55, 1.0, 0.18)
 const SELECTION_LINE := Color(0.25, 0.55, 1.0, 0.95)
 
@@ -32,6 +34,7 @@ var _fetcher: GwTileFetcher
 var _textures := {}
 var _texture_order: Array[String] = []
 var _pending := {}
+## key -> time (msec) after which the tile may be requested again.
 var _unavailable := {}
 var _wanted: Array[Vector3i] = []
 var _wanted_keys := {}
@@ -166,7 +169,7 @@ func _draw_tiles() -> void:
 			if tex != null:
 				draw_texture_rect(tex, rect, false)
 				continue
-			if not _unavailable.has(key):
+			if Time.get_ticks_msec() >= _unavailable.get(key, 0):
 				_wanted.append(Vector3i(wx, ty, zi))
 				_wanted_keys[key] = true
 			_draw_fallback(zi, wx, ty, rect)
@@ -246,12 +249,16 @@ func _on_tile(tile: Vector3i, status: int, data: PackedByteArray, provider: GwTi
 		GwTileFetcher.Status.OK:
 			var image := GwImageUtil.load_image(data)
 			if image == null:
-				_unavailable[key] = true
+				_unavailable[key] = Time.get_ticks_msec() + RETRY_FAILED_MSEC
 				return
 			_store_texture(key, ImageTexture.create_from_image(image))
 			queue_redraw()
-		GwTileFetcher.Status.MISSING, GwTileFetcher.Status.FAILED:
-			_unavailable[key] = true
+		GwTileFetcher.Status.MISSING:
+			_unavailable[key] = 1 << 62
+		GwTileFetcher.Status.FAILED:
+			# Maybe offline for a moment: try again later instead of never.
+			_unavailable[key] = Time.get_ticks_msec() + RETRY_FAILED_MSEC
+			queue_redraw.call_deferred()
 
 
 func _store_texture(key: String, tex: Texture2D) -> void:
