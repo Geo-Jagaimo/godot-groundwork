@@ -14,6 +14,16 @@ const PROJECT_URL := "https://github.com/Geo-Jagaimo/godot-groundwork"
 const DEFAULT_USER_AGENT := "GodotGroundwork/0.2.0 (+" + PROJECT_URL + ")"
 const RETRY_DELAYS: Array[float] = [0.5, 1.0, 2.0]
 const RATE_LIMITED_RETRY_DELAYS: Array[float] = [2.0, 5.0, 10.0]
+## Upper bound for a server's Retry-After.
+const MAX_PAUSE_SEC := 60.0
+## Failures that retrying cannot fix.
+const PERMANENT_RESULTS: Array[int] = [
+	HTTPRequest.RESULT_CANT_RESOLVE,
+	HTTPRequest.RESULT_BODY_SIZE_LIMIT_EXCEEDED,
+	HTTPRequest.RESULT_REDIRECT_LIMIT_REACHED,
+	HTTPRequest.RESULT_DOWNLOAD_FILE_CANT_OPEN,
+	HTTPRequest.RESULT_DOWNLOAD_FILE_WRITE_ERROR,
+]
 
 
 class Job:
@@ -39,6 +49,9 @@ var _idle: Array[HTTPRequest] = []
 var _queue: Array[Job] = []
 var _jobs: Dictionary = {}
 var _running := 0
+## After a 429 nothing new starts before this time.
+var _paused_until_msec := 0
+var _resume_scheduled := false
 
 
 ## [param host] is the node HTTPRequest children are added to (defaults to the
@@ -167,8 +180,20 @@ func dispose() -> void:
 
 
 func _pump() -> void:
+	var wait_msec := _paused_until_msec - Time.get_ticks_msec()
+	if wait_msec > 0:
+		if not _resume_scheduled and not _queue.is_empty():
+			_resume_scheduled = true
+			_resume_after(wait_msec / 1000.0)
+		return
 	while _running < concurrency and not _queue.is_empty():
 		_start(_queue.pop_front())
+
+
+func _resume_after(delay: float) -> void:
+	await _tree().create_timer(delay).timeout
+	_resume_scheduled = false
+	_pump()
 
 
 func _start(job: Job) -> void:
@@ -201,7 +226,7 @@ func _finish_local(job: Job) -> void:
 
 
 func _on_request_completed(
-	result: int, code: int, _headers: PackedStringArray, body: PackedByteArray, job: Job
+	result: int, code: int, headers: PackedStringArray, body: PackedByteArray, job: Job
 ) -> void:
 	if job.request != null:
 		_release(job.request)
@@ -217,9 +242,14 @@ func _on_request_completed(
 	elif result == HTTPRequest.RESULT_SUCCESS and code in [204, 404, 410]:
 		cache.store_missing(job.provider, job.tile)
 		_complete(job, Status.MISSING, PackedByteArray())
+	elif code == 429 and job.attempt < RATE_LIMITED_RETRY_DELAYS.size():
+		# Rate limited: hold back every request, not just this one.
+		var delay := maxf(RATE_LIMITED_RETRY_DELAYS[job.attempt], retry_after_sec(headers))
+		job.attempt += 1
+		_paused_until_msec = maxi(_paused_until_msec, Time.get_ticks_msec() + int(delay * 1000.0))
+		_queue.push_front(job)
 	elif _is_retryable(result, code) and job.attempt < RETRY_DELAYS.size():
-		var delays := RATE_LIMITED_RETRY_DELAYS if code == 429 else RETRY_DELAYS
-		var delay := delays[job.attempt]
+		var delay := RETRY_DELAYS[job.attempt]
 		job.attempt += 1
 		_retry_later(job, delay)
 	else:
@@ -268,7 +298,20 @@ static func _expects_image(provider: GwTileProvider) -> bool:
 	return provider.tile_extension() in ["png", "jpg", "jpeg", "webp"]
 
 
+## Seconds from a "Retry-After: <seconds>" header (0 when absent or a date),
+## capped at [constant MAX_PAUSE_SEC].
+static func retry_after_sec(headers: PackedStringArray) -> float:
+	for h in headers:
+		if h.to_lower().begins_with("retry-after:"):
+			var v := h.get_slice(":", 1).strip_edges()
+			if v.is_valid_int():
+				return clampf(v.to_float(), 0.0, MAX_PAUSE_SEC)
+	return 0.0
+
+
 static func _is_retryable(result: int, code: int) -> bool:
+	if result in PERMANENT_RESULTS:
+		return false
 	if result != HTTPRequest.RESULT_SUCCESS:
 		return true
 	return code == 429 or code >= 500 or code == 0

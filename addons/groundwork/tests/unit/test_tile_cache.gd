@@ -46,3 +46,17 @@ func test_looks_like_image() -> void:
 	assert_bool(GwImageUtil.looks_like_image(img.save_jpg_to_buffer())).is_true()
 	var html := "<html><body>Please log in</body></html>".to_utf8_buffer()
 	assert_bool(GwImageUtil.looks_like_image(html)).is_false()
+
+
+func test_retry_rules() -> void:
+	assert_bool(GwTileFetcher._is_retryable(HTTPRequest.RESULT_TIMEOUT, 0)).is_true()
+	assert_bool(GwTileFetcher._is_retryable(HTTPRequest.RESULT_CANT_RESOLVE, 0)).is_false()
+	assert_bool(GwTileFetcher._is_retryable(HTTPRequest.RESULT_SUCCESS, 503)).is_true()
+	assert_bool(GwTileFetcher._is_retryable(HTTPRequest.RESULT_SUCCESS, 403)).is_false()
+	var headers := PackedStringArray(["Content-Type: text/html", "Retry-After: 12"])
+	assert_float(GwTileFetcher.retry_after_sec(headers)).is_equal(12.0)
+	assert_float(GwTileFetcher.retry_after_sec(PackedStringArray(["Retry-After: 9999"]))).is_equal(
+		GwTileFetcher.MAX_PAUSE_SEC
+	)
+	var date := PackedStringArray(["Retry-After: Wed, 21 Oct 2026 07:28:00 GMT"])
+	assert_float(GwTileFetcher.retry_after_sec(date)).is_equal(0.0)
