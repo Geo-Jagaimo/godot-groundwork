@@ -8,10 +8,12 @@ signal import_requested
 signal cancel_requested
 signal open_requested
 signal instance_requested
+signal export_requested
 
 const SettingsBridge := preload("res://addons/groundwork/editor/settings_bridge.gd")
 const CHUNK_SIZES: Array[int] = [64, 128, 256]
 const DECIMATIONS: Array[int] = [1, 2, 4]
+const LOD_LEVELS: Array[int] = [0, 1, 2, 3]
 
 var bbox: GwGeoBBox
 
@@ -27,10 +29,12 @@ var _img_option: OptionButton
 var _offset_spin: SpinBox
 var _chunk_option: OptionButton
 var _decim_option: OptionButton
+var _lod_option: OptionButton
 var _collision_check: CheckBox
 var _label_check: CheckBox
 var _buildings_check: CheckBox
 var _roads_check: CheckBox
+var _water_check: CheckBox
 var _osm_option: OptionButton
 var _height_spin: SpinBox
 var _estimate: Label
@@ -110,6 +114,14 @@ func _init() -> void:
 	_decim_option.item_selected.connect(_emit_changed.unbind(1))
 	_row(grid, "Mesh detail", _decim_option)
 
+	_lod_option = OptionButton.new()
+	for n in LOD_LEVELS:
+		_lod_option.add_item("Off" if n == 0 else "%d coarser level%s" % [n, "s" if n > 1 else ""])
+	_lod_option.select(2)
+	_lod_option.tooltip_text = "Coarser meshes for distant chunks (visibility ranges)."
+	_lod_option.item_selected.connect(_emit_changed.unbind(1))
+	_row(grid, "Distance LOD", _lod_option)
+
 	_collision_check = CheckBox.new()
 	_collision_check.text = "Collision (HeightMapShape3D)"
 	_collision_check.button_pressed = true
@@ -140,6 +152,11 @@ func _init() -> void:
 	_roads_check.tooltip_text = "Roads draped over the terrain (no collision of their own)."
 	_roads_check.toggled.connect(_on_osm_toggled.unbind(1))
 	osm_row.add_child(_roads_check)
+	_water_check = CheckBox.new()
+	_water_check.text = "Water"
+	_water_check.tooltip_text = "Lakes, ponds, rivers and canals (no collision)."
+	_water_check.toggled.connect(_on_osm_toggled.unbind(1))
+	osm_row.add_child(_water_check)
 	_row(grid, "", osm_row)
 
 	_osm_option = OptionButton.new()
@@ -206,6 +223,11 @@ func _init() -> void:
 	inst.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inst.pressed.connect(func() -> void: instance_requested.emit())
 	_result_box.add_child(inst)
+	var export := Button.new()
+	export.text = "Export glTF…"
+	export.tooltip_text = "Write the terrain, buildings, roads and water to a .glb file."
+	export.pressed.connect(func() -> void: export_requested.emit())
+	_result_box.add_child(export)
 	add_child(_result_box)
 
 
@@ -268,10 +290,12 @@ func build_request() -> GwImportRequest:
 	req.imagery_zoom_offset = int(_offset_spin.value)
 	req.chunk_size = CHUNK_SIZES[maxi(_chunk_option.selected, 0)]
 	req.mesh_decimation = DECIMATIONS[maxi(_decim_option.selected, 0)]
+	req.lod_levels = LOD_LEVELS[maxi(_lod_option.selected, 0)]
 	req.generate_collision = _collision_check.button_pressed
 	req.add_attribution_label = _label_check.button_pressed
 	req.include_buildings = _buildings_check.button_pressed
 	req.include_roads = _roads_check.button_pressed
+	req.include_water = _water_check.button_pressed
 	req.osm_provider = _provider_at(_overpass, _osm_option, false)
 	req.building_default_height_m = _height_spin.value
 	return req
@@ -285,6 +309,7 @@ func apply_request(req: GwImportRequest) -> void:
 	_offset_spin.set_value_no_signal(req.imagery_zoom_offset)
 	_chunk_option.select(maxi(CHUNK_SIZES.find(req.chunk_size), 0))
 	_decim_option.select(maxi(DECIMATIONS.find(req.mesh_decimation), 0))
+	_lod_option.select(maxi(LOD_LEVELS.find(req.lod_levels), 0))
 	_collision_check.set_pressed_no_signal(req.generate_collision)
 	_label_check.set_pressed_no_signal(req.add_attribution_label)
 	if req.elevation_provider:
@@ -292,6 +317,7 @@ func apply_request(req: GwImportRequest) -> void:
 	_fill(_img_option, _imagery, req.imagery_provider.id if req.imagery_provider else "", true)
 	_buildings_check.set_pressed_no_signal(req.include_buildings)
 	_roads_check.set_pressed_no_signal(req.include_roads)
+	_water_check.set_pressed_no_signal(req.include_water)
 	if req.osm_provider:
 		_fill(_osm_option, _overpass, req.osm_provider.id, false)
 	_height_spin.set_value_no_signal(req.building_default_height_m)
@@ -369,7 +395,11 @@ func _on_osm_toggled() -> void:
 
 
 func _update_osm_rows() -> void:
-	var on := _buildings_check.button_pressed or _roads_check.button_pressed
+	var on := (
+		_buildings_check.button_pressed
+		or _roads_check.button_pressed
+		or _water_check.button_pressed
+	)
 	_osm_option.disabled = not on
 	_height_spin.editable = _buildings_check.button_pressed
 

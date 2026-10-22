@@ -18,6 +18,7 @@ var _area_label: Label
 var _status: Label
 var _cache_label: Label
 var _overwrite_dialog: ConfirmationDialog
+var _export_dialog: EditorFileDialog
 var _geocoder: GwGeocoder
 var _builder: GwWorldBuilder
 var _last_result: GwImportResult
@@ -81,6 +82,7 @@ func _init() -> void:
 	panel.cancel_requested.connect(_on_cancel_requested)
 	panel.open_requested.connect(_on_open_requested)
 	panel.instance_requested.connect(_on_instance_requested)
+	panel.export_requested.connect(_on_export_requested)
 	lower.add_child(panel)
 
 	lower.add_child(HSeparator.new())
@@ -110,6 +112,13 @@ func _ready() -> void:
 	_overwrite_dialog.ok_button_text = "Overwrite"
 	_overwrite_dialog.confirmed.connect(_on_overwrite_confirmed)
 	add_child(_overwrite_dialog)
+	_export_dialog = EditorFileDialog.new()
+	_export_dialog.file_mode = EditorFileDialog.FILE_MODE_SAVE_FILE
+	_export_dialog.access = EditorFileDialog.ACCESS_FILESYSTEM
+	_export_dialog.add_filter("*.glb", "glTF Binary")
+	_export_dialog.add_filter("*.gltf", "glTF")
+	_export_dialog.file_selected.connect(_export_gltf)
+	add_child(_export_dialog)
 	_reload_providers()
 	var view: Array = SettingsBridge.get_meta_value("view", [20.0, 0.0, 2.0])
 	map.set_view(view[0], view[1], view[2])
@@ -288,6 +297,31 @@ func _on_instance_requested() -> void:
 	undo_redo.commit_action()
 	EditorInterface.get_selection().clear()
 	EditorInterface.get_selection().add_node(instance)
+
+
+func _on_export_requested() -> void:
+	if _last_result == null or not _last_result.ok:
+		return
+	var scene_path := _last_result.scene_path
+	_export_dialog.current_path = ProjectSettings.globalize_path(
+		scene_path.get_base_dir().path_join(scene_path.get_file().get_basename() + ".glb")
+	)
+	_export_dialog.popup_file_dialog()
+
+
+func _export_gltf(path: String) -> void:
+	var packed := ResourceLoader.load(_last_result.scene_path, "PackedScene") as PackedScene
+	if packed == null:
+		return
+	var scene := packed.instantiate() as Node3D
+	var err := GwGltfExporter.export_scene(scene, path)
+	scene.free()
+	if err != OK:
+		_show_status("glTF export failed: %s" % error_string(err))
+		return
+	_show_status("Exported %s. Credit the data providers (ATTRIBUTION.md) where you use it." % path)
+	if ProjectSettings.localize_path(path).begins_with("res://"):
+		EditorInterface.get_resource_filesystem().scan()
 
 
 func _on_clear_cache() -> void:
