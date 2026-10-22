@@ -1,4 +1,4 @@
-# Groundwork for Godot
+# Godot-Groundwork
 
 Godot エディタ内の地図で範囲を選ぶだけで、**実世界の地形（距離 LOD 付き）・コリジョン・航空写真と
 OpenStreetMap の建物・道路・水域を、Godot 標準ノードだけで構成された歩けるシーン**として生成するアドオンです。
@@ -20,7 +20,7 @@ GDScript のみで実装しており、GDExtension・GDAL・他のアドオン�
 1. `addons/groundwork/` をプロジェクトにコピーし、*プロジェクト → プロジェクト設定 → プラグイン*
    で **Groundwork for Godot** を有効にします。右側に **Geo** ドックが表示されます。
 2. 地名（または `緯度, 経度`）で検索し、地図上で **Shift+ドラッグ** して範囲を選択します。
-   標高プロバイダ（その範囲で使えれば航空写真も）を選び、OpenStreetMap の **Buildings** / **Roads** にチェックを入れます。
+   標高プロバイダ（その範囲で使えれば航空写真も）を選び、OpenStreetMap の **Buildings** / **Roads** / **Water** にチェックを入れます。
 3. **Import** を押し、**Open Scene**（または **Add to Current Scene**）で開きます。
 
 **Godot 4.4 以降**が必要です。
@@ -187,7 +187,7 @@ if result.ok:
 
 ## ロードマップ
 
-- **v0.4 以降**: 切妻などの屋根、土地利用、GeoTIFF / GeoJSON 読み込み、他のエクスポートアダプタ（Terrain3D・HTerrain）、他の座標系（UTM・平面直角座標系）での座標出力
+- **今後**: 切妻などの屋根、土地利用、GeoTIFF / GeoJSON 読み込み、他のエクスポートアダプタ（Terrain3D・HTerrain）、他の座標系（UTM・平面直角座標系）での座標出力
 
 ## 開発
 

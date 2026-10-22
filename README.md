@@ -1,4 +1,4 @@
-# Groundwork for Godot
+# Godot-Groundwork
 
 Pick an area on a map inside the Godot editor and get a **walkable scene of the real
 world** — terrain mesh with distance LOD, collision, aerial imagery and OpenStreetMap
@@ -13,16 +13,13 @@ load places while your game runs. Pure GDScript: no GDExtension, no GDAL, no oth
 
 <sub>Shibuya station area. Buildings and roads © OpenStreetMap contributors (ODbL). 出典：国土地理院「地理院タイル（標高タイル DEM5A、全国最新写真（シームレス））」を加工して作成</sub>
 
-> Groundwork for Godot is an unofficial community project and is not affiliated with
-> or endorsed by the Godot Foundation.
-
 ## Quick start
 
 1. Copy `addons/groundwork/` into your project and enable **Groundwork for Godot** in
    *Project → Project Settings → Plugins*. A **Geo** dock appears on the right.
 2. Search for a place (or type `lat, lon`), then **Shift+drag** on the map to select an
    area. Choose an elevation provider (and imagery, if available for the area), and tick
-   **Buildings** / **Roads** for OpenStreetMap data.
+   **Buildings** / **Roads** / **Water** for OpenStreetMap data.
 3. Press **Import**, then **Open Scene** — or **Add to Current Scene** and drop a
    character on it.
 
@@ -204,7 +201,7 @@ its size and can clear it.
 
 ## Roadmap
 
-- **v0.4+**: pitched roofs, land use, GeoTIFF / GeoJSON import, more export adapters
+- **Next**: pitched roofs, land use, GeoTIFF / GeoJSON import, more export adapters
   (Terrain3D, HTerrain), coordinates in other projections (UTM, Japan plane rectangular).
 
 ## Development

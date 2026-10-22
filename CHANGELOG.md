@@ -6,6 +6,13 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-22
+
+First public release, with everything listed below: real-world terrain with distance
+LOD, collision and aerial imagery, OpenStreetMap buildings, roads and water, glTF export
+and runtime loading. Versions 0.1.0 to 0.3.0 were development milestones and were not
+released on their own.
+
 ## [0.3.0] - unreleased
 
 Distance LOD, courtyards, water, glTF export and runtime loading.
@@ -97,3 +104,6 @@ First version: real-world terrain from tile services, generated in the editor.
 - Disk tile cache in `user://groundwork_cache/` with per-provider TTL.
 - Demo project with a first-person controller.
 - gdUnit4 test suite (offline, synthetic tiles) and CI.
+
+[Unreleased]: https://github.com/Geo-Jagaimo/godot-groundwork/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Geo-Jagaimo/godot-groundwork/releases/tag/v1.0.0
