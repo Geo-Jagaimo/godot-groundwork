@@ -125,13 +125,18 @@ func _ready() -> void:
 	_update_cache_label()
 
 
+## Called by plugin.gd before the dock is freed. (Not in _exit_tree: moving the
+## dock to another slot also leaves and re-enters the tree.)
+func shutdown() -> void:
+	if _builder != null:
+		_builder.cancel()
+
+
 func _exit_tree() -> void:
 	if map != null:
 		SettingsBridge.set_meta_value(
 			"view", [map.get_center_lat(), map.get_center_lon(), map.zoom]
 		)
-	if _builder != null:
-		_builder.cancel()
 
 
 func _reload_providers() -> void:

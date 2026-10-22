@@ -28,6 +28,7 @@ func _enter_tree() -> void:
 
 func _exit_tree() -> void:
 	if _dock != null:
+		_dock.shutdown()
 		remove_control_from_docks(_dock)
 		_dock.queue_free()
 		_dock = null
