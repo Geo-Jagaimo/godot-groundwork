@@ -39,3 +39,36 @@ static func assemble(
 					out.append_array(t.slice(a, a + tile_size))
 	hf.data = out
 	return hf
+
+
+## The part of a parent tile ([param levels] zooms lower) that covers one of its
+## descendants, enlarged to a full tile. [param sub] is the descendant's position
+## inside the parent in descendant tiles. Bilinear where all four neighbours are
+## valid, nearest otherwise (so NoData does not spread). Thread-safe.
+static func crop_parent(
+	parent: PackedFloat32Array, tile_size: int, levels: int, sub: Vector2i
+) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(tile_size * tile_size)
+	var span := float(tile_size) / (1 << levels)
+	var last := tile_size - 1
+	for y in tile_size:
+		var py := clampf(sub.y * span + (y + 0.5) * span / tile_size - 0.5, 0.0, last)
+		var y0 := mini(floori(py), last - 1)
+		var fy := py - y0
+		for x in tile_size:
+			var px := clampf(sub.x * span + (x + 0.5) * span / tile_size - 0.5, 0.0, last)
+			var x0 := mini(floori(px), last - 1)
+			var fx := px - x0
+			var i := y0 * tile_size + x0
+			var h00 := parent[i]
+			var h10 := parent[i + 1]
+			var h01 := parent[i + tile_size]
+			var h11 := parent[i + tile_size + 1]
+			if is_nan(h00) or is_nan(h10) or is_nan(h01) or is_nan(h11):
+				out[y * tile_size + x] = parent[roundi(py) * tile_size + roundi(px)]
+			else:
+				var top := lerpf(h00, h10, fx)
+				var bottom := lerpf(h01, h11, fx)
+				out[y * tile_size + x] = lerpf(top, bottom, fy)
+	return out

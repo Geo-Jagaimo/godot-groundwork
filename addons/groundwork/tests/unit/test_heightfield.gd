@@ -34,6 +34,26 @@ func test_assemble_places_tiles() -> void:
 	assert_int(hf.count_nodata()).is_equal(16)
 
 
+func test_crop_parent() -> void:
+	# 4 px parent with a ramp; child (1, 0) one level down is its top-right quarter.
+	var parent := PackedFloat32Array()
+	for y in 4:
+		for x in 4:
+			parent.append(x * 10.0 + y)
+	var child := GwHeightfieldAssembler.crop_parent(parent, 4, 1, Vector2i(1, 0))
+	assert_int(child.size()).is_equal(16)
+	# Child pixel centres map to parent x = 1.75, 2.25, 2.75, 3.25 (clamped to 3).
+	assert_float(child[0]).is_equal_approx(17.5, 1e-4)
+	assert_float(child[3]).is_equal_approx(30.0, 1e-4)
+	var nodata := PackedFloat32Array()
+	nodata.resize(16)
+	nodata.fill(NAN)
+	(
+		assert_bool(is_nan(GwHeightfieldAssembler.crop_parent(nodata, 4, 2, Vector2i(3, 3))[5]))
+		. is_true()
+	)
+
+
 func test_fill_nodata_interpolates() -> void:
 	var hf := GwHeightfield.create(5, 5, 1.0, Vector2.ZERO)
 	hf.data.fill(10.0)
