@@ -156,6 +156,7 @@ func _generate(plan: GwImportPlan, result: GwImportResult) -> BuildData:
 		data.attribution.add_provider(req.elevation_provider)
 		data.attribution.add_provider(req.imagery_provider)
 		data.attribution.add_provider(data.osm_provider)
+		data.georef.attribution = data.attribution.to_text()
 	return data
 
 
@@ -475,7 +476,6 @@ func _save(plan: GwImportPlan, data: BuildData, result: GwImportResult) -> void:
 	_emit("save", done, total)
 	DirAccess.make_dir_recursive_absolute(terrain_dir)
 
-	data.georef.attribution = data.attribution.to_text()
 	if not _save_resource(data.heightfield, folder.path_join("heightfield.res"), result):
 		return
 	if not _save_resource(data.georef, folder.path_join("georef.tres"), result):

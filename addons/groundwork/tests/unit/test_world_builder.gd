@@ -337,6 +337,7 @@ func test_build_nodes_in_memory() -> void:
 	assert_bool(result.ok).is_true()
 	assert_object(root).is_not_null()
 	assert_int(root.get_node("Terrain").get_child_count()).is_equal(16)
+	assert_str(root.get_attribution()).contains("© synthetic terrarium")
 	assert_bool(DirAccess.dir_exists_absolute(OUTPUT_DIR.path_join("memory"))).is_false()
 	root.free()
 
