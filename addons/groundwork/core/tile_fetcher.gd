@@ -11,7 +11,7 @@ enum Status { OK, MISSING, FAILED, CANCELLED }
 
 ## OSM tile and Nominatim policies require a distinct, identifying User-Agent.
 const PROJECT_URL := "https://github.com/Geo-Jagaimo/godot-groundwork"
-const DEFAULT_USER_AGENT := "GodotGroundwork/0.1.0 (+" + PROJECT_URL + ")"
+const DEFAULT_USER_AGENT := "GodotGroundwork/0.2.0 (+" + PROJECT_URL + ")"
 const RETRY_DELAYS: Array[float] = [0.5, 1.0, 2.0]
 const RATE_LIMITED_RETRY_DELAYS: Array[float] = [2.0, 5.0, 10.0]
 
