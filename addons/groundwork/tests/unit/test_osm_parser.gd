@@ -39,7 +39,7 @@ static func _fixture() -> Dictionary:
 			"geometry": _geom([Vector2(0, 0), Vector2(5, 0)])
 		},
 		# Multipolygon whose outer ring is split into two ways (one reversed),
-		# plus an inner ring that v0.2 ignores.
+		# plus an inner ring (courtyard).
 		{
 			"type": "relation",
 			"tags": {"type": "multipolygon", "building": "office", "building:levels": "4"},
@@ -94,6 +94,8 @@ func test_buildings() -> void:
 	var multi := r.buildings[1]
 	assert_int(multi.ring.size()).is_equal(4)
 	assert_str(multi.tags["building:levels"]).is_equal("4")
+	assert_int(multi.holes.size()).is_equal(1)
+	assert_int(first.holes.size()).is_equal(0)
 	assert_int(r.broken_rings).is_equal(0)
 
 
