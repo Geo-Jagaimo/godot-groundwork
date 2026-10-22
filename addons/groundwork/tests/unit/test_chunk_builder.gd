@@ -89,3 +89,52 @@ func test_collision_heights_match_mesh() -> void:
 	var shape := GwTerrainChunkBuilder.create_collision_shape(cells, heights)
 	assert_int(shape.map_width).is_equal(9)
 	assert_int(shape.map_depth).is_equal(9)
+
+
+func test_lod_arrays_keep_outline_and_uvs() -> void:
+	var hf := _hill(21, 21, 2.0)
+	var cells := Rect2i(4, 4, 15, 10)
+	var lod := GwTerrainChunkBuilder.build_lod_arrays(hf, cells, 4, false, 0.0)
+	var verts: PackedVector3Array = lod[Mesh.ARRAY_VERTEX]
+	var uvs: PackedVector2Array = lod[Mesh.ARRAY_TEX_UV]
+	# Columns 4, 8, 12, 16 and 19; rows 4, 8, 12 and 14.
+	assert_int(verts.size()).is_equal(5 * 4)
+	var full := GwTerrainChunkBuilder.build_arrays(hf, cells)
+	var full_verts: PackedVector3Array = full[Mesh.ARRAY_VERTEX]
+	# Corners are the same points as in LOD 0, with the same UVs.
+	assert_bool(verts[0] == full_verts[0]).is_true()
+	assert_bool(verts[verts.size() - 1] == full_verts[full_verts.size() - 1]).is_true()
+	assert_vector(uvs[uvs.size() - 1]).is_equal(Vector2.ONE)
+	var idx: PackedInt32Array = lod[Mesh.ARRAY_INDEX]
+	assert_int(idx.size()).is_equal(4 * 3 * 6)
+
+
+func test_lod_skirt_hangs_down_and_faces_out() -> void:
+	# An inner chunk: all four sides have neighbours.
+	var hf := _hill(33, 33, 1.0)
+	var cells := Rect2i(8, 8, 16, 16)
+	var lod := GwTerrainChunkBuilder.build_lod_arrays(hf, cells, 2, false, 5.0)
+	var verts: PackedVector3Array = lod[Mesh.ARRAY_VERTEX]
+	var idx: PackedInt32Array = lod[Mesh.ARRAY_INDEX]
+	var grid := 9 * 9
+	var border := 4 * 8
+	assert_int(verts.size()).is_equal(grid + border)
+	assert_int(idx.size()).is_equal((8 * 8 * 2 + border * 2) * 3)
+	assert_float(verts[grid].y).is_equal_approx(verts[0].y - 5.0, 1e-4)
+	var center := Vector3(hf.origin.x + 16, 0, hf.origin.y + 16)
+	for t in range(8 * 8 * 2 * 3, idx.size(), 3):
+		var a := verts[idx[t]]
+		var front := (verts[idx[t + 2]] - a).cross(verts[idx[t + 1]] - a)
+		var mid := (a + verts[idx[t + 1]] + verts[idx[t + 2]]) / 3.0 - center
+		assert_float(Vector2(front.x, front.z).dot(Vector2(mid.x, mid.z))).is_greater(0.0)
+
+
+func test_no_skirt_on_the_terrain_outline() -> void:
+	var hf := _hill(17, 17, 1.0)
+	# The only chunk covers the whole heightfield: no side has a neighbour.
+	var whole := GwTerrainChunkBuilder.build_lod_arrays(hf, Rect2i(0, 0, 16, 16), 2, false, 5.0)
+	assert_int((whole[Mesh.ARRAY_INDEX] as PackedInt32Array).size()).is_equal(8 * 8 * 2 * 3)
+	# A corner chunk keeps skirts only on its two inner sides.
+	var corner := GwTerrainChunkBuilder.build_lod_arrays(hf, Rect2i(0, 0, 8, 8), 2, false, 5.0)
+	var corner_idx: PackedInt32Array = corner[Mesh.ARRAY_INDEX]
+	assert_int(corner_idx.size()).is_equal((4 * 4 * 2 + 2 * 4 * 2) * 3)

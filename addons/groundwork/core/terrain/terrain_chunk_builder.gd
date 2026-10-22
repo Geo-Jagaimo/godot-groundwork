@@ -102,6 +102,109 @@ static func build_arrays(hf: GwHeightfield, cells: Rect2i, vertex_colors: bool =
 	return arrays
 
 
+## Coarser mesh arrays for distance LOD: every [param step]-th sample (the
+## chunk's last row and column are always kept, so the outline matches LOD 0),
+## plus a skirt of [param skirt_depth] metres hanging from the border to hide
+## the cracks between neighbouring chunks at different levels. The outer edge
+## of the whole terrain gets no skirt (there is no neighbour, and it would show).
+## UVs match [method build_arrays], so the same texture fits.
+static func build_lod_arrays(
+	hf: GwHeightfield, cells: Rect2i, step: int, vertex_colors: bool, skirt_depth: float
+) -> Array:
+	var cols := _lod_samples(cells.position.x, cells.size.x, step)
+	var rows := _lod_samples(cells.position.y, cells.size.y, step)
+	var vw := cols.size()
+	var vh := rows.size()
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var colors := PackedColorArray()
+	var cs := hf.cell_size
+	var range_h := maxf(hf.max_height - hf.min_height, 0.001)
+	for r in rows:
+		for c in cols:
+			var h := hf.data[r * hf.width + c]
+			verts.append(Vector3(hf.origin.x + c * cs, h, hf.origin.y + r * cs))
+			normals.append(hf.normal_at(c, r))
+			uvs.append(
+				Vector2(
+					float(c - cells.position.x) / cells.size.x,
+					float(r - cells.position.y) / cells.size.y
+				)
+			)
+			if vertex_colors:
+				colors.append(elevation_color((h - hf.min_height) / range_h))
+	var indices := PackedInt32Array()
+	for j in vh - 1:
+		for k in vw - 1:
+			var a := j * vw + k
+			GwMeshUtil.add_triangle(indices, verts, a, a + 1, a + vw, Vector3.UP)
+			GwMeshUtil.add_triangle(indices, verts, a + 1, a + vw + 1, a + vw, Vector3.UP)
+
+	if skirt_depth > 0.0:
+		# Border loop, clockwise seen from above, with the outward direction.
+		var border: Array[Vector2i] = []
+		for k in vw:
+			border.append(Vector2i(k, 0))
+		for j in range(1, vh):
+			border.append(Vector2i(vw - 1, j))
+		for k in range(vw - 2, -1, -1):
+			border.append(Vector2i(k, vh - 1))
+		for j in range(vh - 2, 0, -1):
+			border.append(Vector2i(0, j))
+		var center := (verts[0] + verts[verts.size() - 1]) / 2.0
+		var first := verts.size()
+		for b in border:
+			var i := b.y * vw + b.x
+			verts.append(verts[i] - Vector3(0, skirt_depth, 0))
+			normals.append(normals[i])
+			uvs.append(uvs[i])
+			if vertex_colors:
+				colors.append(colors[i])
+		for n in border.size():
+			var ba := border[n]
+			var nb := border[(n + 1) % border.size()]
+			if _on_terrain_edge(hf, cols[ba.x], rows[ba.y], cols[nb.x], rows[nb.y]):
+				continue
+			var top_a := ba.y * vw + ba.x
+			var top_b := nb.y * vw + nb.x
+			var low_a := first + n
+			var low_b := first + (n + 1) % border.size()
+			var out := verts[top_a] + verts[top_b] - center * 2.0
+			out = Vector3(out.x, 0.0, out.z)
+			GwMeshUtil.add_triangle(indices, verts, top_a, top_b, low_a, out)
+			GwMeshUtil.add_triangle(indices, verts, top_b, low_b, low_a, out)
+
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	if vertex_colors:
+		arrays[Mesh.ARRAY_COLOR] = colors
+	return arrays
+
+
+## Whether the edge between samples (c0, r0) and (c1, r1) lies on the outline
+## of the whole heightfield.
+static func _on_terrain_edge(hf: GwHeightfield, c0: int, r0: int, c1: int, r1: int) -> bool:
+	if c0 == c1 and (c0 == 0 or c0 == hf.width - 1):
+		return true
+	return r0 == r1 and (r0 == 0 or r0 == hf.height - 1)
+
+
+## Sample indices start, start + step, ... and always start + count.
+static func _lod_samples(start: int, count: int, step: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	var i := 0
+	while i < count:
+		out.append(start + i)
+		i += step
+	out.append(start + count)
+	return out
+
+
 ## Heights for a HeightMapShape3D of the chunk, divided by the cell size because
 ## the shape is scaled uniformly by it (see [method collision_transform]).
 static func build_collision_heights(hf: GwHeightfield, cells: Rect2i) -> PackedFloat32Array:
