@@ -11,7 +11,7 @@ const Player := preload("res://demo/player.gd")
 
 
 func _ready() -> void:
-	_add_environment()
+	add_environment(self)
 	if not ResourceLoader.exists(terrain_scene):
 		_show_message(
 			(
@@ -34,7 +34,8 @@ func _ready() -> void:
 	add_child(player)
 
 
-func _add_environment() -> void:
+## Sky, light and fog; also used by the runtime demo.
+static func add_environment(parent: Node) -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = Sky.new()
@@ -46,12 +47,12 @@ func _add_environment() -> void:
 	env.fog_aerial_perspective = 0.6
 	var world := WorldEnvironment.new()
 	world.environment = env
-	add_child(world)
+	parent.add_child(world)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-40, -50, 0)
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 600.0
-	add_child(sun)
+	parent.add_child(sun)
 
 
 func _show_message(text: String) -> void:
