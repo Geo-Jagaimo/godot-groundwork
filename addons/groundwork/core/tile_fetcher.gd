@@ -217,6 +217,8 @@ func _start(job: Job) -> void:
 func _finish_local(job: Job) -> void:
 	_running -= 1
 	if _jobs.get(job.url) != job:
+		# Cancelled meanwhile; still let queued requests start.
+		_pump()
 		return
 	if FileAccess.file_exists(job.url):
 		_complete(job, Status.OK, FileAccess.get_file_as_bytes(job.url))
