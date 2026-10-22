@@ -356,6 +356,25 @@ func test_existing_output_needs_overwrite() -> void:
 	assert_bool(FileAccess.file_exists(stray)).is_false()
 
 
+func test_stale_files_keep_import_settings() -> void:
+	var dir := OUTPUT_DIR.path_join("stale")
+	DirAccess.make_dir_recursive_absolute(dir)
+	for f: String in [
+		"chunk_000_000.png",
+		"chunk_000_000.png.import",
+		"chunk_001_000.png",
+		"chunk_001_000.png.import",
+		"building_material.tres"
+	]:
+		FileAccess.open(dir.path_join(f), FileAccess.WRITE).store_string("x")
+	var keep := PackedStringArray([dir.path_join("chunk_000_000.png")])
+	GwWorldBuilder._remove_stale_files(dir, keep, "chunk_")
+	var left := DirAccess.get_files_at(dir)
+	assert_array(Array(left)).contains_exactly_in_any_order(
+		["chunk_000_000.png", "chunk_000_000.png.import", "building_material.tres"]
+	)
+
+
 func test_cancel() -> void:
 	var builder := GwWorldBuilder.new()
 	builder.cancel()

@@ -474,7 +474,6 @@ func _save(plan: GwImportPlan, data: BuildData, result: GwImportResult) -> void:
 	var done := 0
 	_emit("save", done, total)
 	DirAccess.make_dir_recursive_absolute(terrain_dir)
-	_remove_old_chunks(terrain_dir)
 
 	data.georef.attribution = data.attribution.to_text()
 	if not _save_resource(data.heightfield, folder.path_join("heightfield.res"), result):
@@ -511,6 +510,11 @@ func _save(plan: GwImportPlan, data: BuildData, result: GwImportResult) -> void:
 			return
 	if not await _save_osm(folder, data, result):
 		return
+	# Only now drop what a previous import left behind. Files written above keep
+	# their .import, so the user's texture import settings survive a re-import.
+	_remove_stale_files(terrain_dir, result.files, "chunk_")
+	_remove_stale_files(folder.path_join("buildings"), result.files, "chunk_")
+	_remove_stale_files(folder.path_join("roads"), result.files, "", ".mesh")
 
 	_emit("scene", 0, 1)
 	var root := _assemble_scene(plan, data, textures)
@@ -536,8 +540,6 @@ func _save(plan: GwImportPlan, data: BuildData, result: GwImportResult) -> void:
 func _save_osm(folder: String, data: BuildData, result: GwImportResult) -> bool:
 	var buildings_dir := folder.path_join("buildings")
 	var roads_dir := folder.path_join("roads")
-	_remove_old_chunks(buildings_dir)
-	_remove_files(roads_dir, ".mesh")
 	var tree := _tree()
 	if not data.building_meshes.is_empty():
 		DirAccess.make_dir_recursive_absolute(buildings_dir)
@@ -815,23 +817,20 @@ func _save_resource(
 	return true
 
 
-## Removes chunk files of a previous import so a smaller re-import leaves no strays.
-static func _remove_old_chunks(dir_path: String) -> void:
+## Removes files of a previous import that this import did not write, so a
+## smaller re-import leaves no strays. Only names with [param prefix] and
+## [param suffix] are considered; a file's ".import" goes with it.
+static func _remove_stale_files(
+	dir_path: String, keep: PackedStringArray, prefix: String = "", suffix: String = ""
+) -> void:
 	var dir := DirAccess.open(dir_path)
 	if dir == null:
 		return
 	for f in dir.get_files():
-		if f.begins_with("chunk_"):
-			dir.remove(f)
-
-
-static func _remove_files(dir_path: String, suffix: String) -> void:
-	var dir := DirAccess.open(dir_path)
-	if dir == null:
-		return
-	for f in dir.get_files():
-		if f.ends_with(suffix):
-			dir.remove(f)
+		var name := f.trim_suffix(".import")
+		if name.begins_with(prefix) and name.ends_with(suffix):
+			if dir_path.path_join(name) not in keep:
+				dir.remove(f)
 
 
 static func _set_owner_recursive(node: Node, owner: Node) -> void:
