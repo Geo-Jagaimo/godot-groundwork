@@ -5,7 +5,7 @@ world** — terrain mesh with distance LOD, collision, aerial imagery and OpenSt
 buildings, roads and water — built only from standard Godot nodes. Export it to glTF, or
 load places while your game runs. Pure GDScript: no GDExtension, no GDAL, no other addons.
 
-![Mt. Fuji summit imported with Groundwork for Godot](docs/preview.png)
+![Mt. Fuji summit imported with Godot-Groundwork](docs/preview.png)
 
 <sub>Mt. Fuji summit, 3 km × 3 km. 出典：国土地理院「地理院タイル（標高タイル DEM10B、全国最新写真（シームレス））」を加工して作成</sub>
 
@@ -15,7 +15,7 @@ load places while your game runs. Pure GDScript: no GDExtension, no GDAL, no oth
 
 ## Quick start
 
-1. Copy `addons/groundwork/` into your project and enable **Groundwork for Godot** in
+1. Copy `addons/groundwork/` into your project and enable **Godot-Groundwork** in
    *Project → Project Settings → Plugins*. A **Geo** dock appears on the right.
 2. Search for a place (or type `lat, lon`), then **Shift+drag** on the map to select an
    area. Choose an elevation provider (and imagery, if available for the area), and tick

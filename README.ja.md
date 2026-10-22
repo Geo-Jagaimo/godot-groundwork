@@ -5,7 +5,7 @@ OpenStreetMap の建物・道路・水域を、Godot 標準ノードだけで構
 glTF への書き出しや、ゲーム実行中の読み込みもできます。
 GDScript のみで実装しており、GDExtension・GDAL・他のアドオンは不要です。
 
-![Groundwork for Godot で取り込んだ富士山頂](docs/preview.png)
+![Godot-Groundwork で取り込んだ富士山頂](docs/preview.png)
 
 <sub>富士山頂 3 km × 3 km。出典：国土地理院「地理院タイル（標高タイル DEM10B、全国最新写真（シームレス））」を加工して作成</sub>
 
@@ -13,12 +13,12 @@ GDScript のみで実装しており、GDExtension・GDAL・他のアドオン�
 
 <sub>渋谷駅周辺。建物・道路 © OpenStreetMap contributors (ODbL)。出典：国土地理院「地理院タイル（標高タイル DEM5A、全国最新写真（シームレス））」を加工して作成</sub>
 
-> Groundwork for Godot は非公式のコミュニティプロジェクトであり、Godot Foundation とは無関係です。
+> Godot-Groundwork は非公式のコミュニティプロジェクトであり、Godot Foundation とは無関係です。
 
 ## クイックスタート
 
 1. `addons/groundwork/` をプロジェクトにコピーし、*プロジェクト → プロジェクト設定 → プラグイン*
-   で **Groundwork for Godot** を有効にします。右側に **Geo** ドックが表示されます。
+   で **Godot-Groundwork** を有効にします。右側に **Geo** ドックが表示されます。
 2. 地名（または `緯度, 経度`）で検索し、地図上で **Shift+ドラッグ** して範囲を選択します。
    標高プロバイダ（その範囲で使えれば航空写真も）を選び、OpenStreetMap の **Buildings** / **Roads** / **Water** にチェックを入れます。
 3. **Import** を押し、**Open Scene**（または **Add to Current Scene**）で開きます。
