@@ -312,6 +312,25 @@ func test_osm_failure_is_not_fatal() -> void:
 	assert_bool(warned).is_true()
 
 
+func test_missing_imagery_falls_back_to_elevation_colours() -> void:
+	var req := _request("no_imagery")
+	req.imagery_provider.url_template = TILE_ROOT.path_join("no_imagery/{z}/{x}/{y}.png")
+	var result: GwImportResult = await GwWorldBuilder.new().build(req)
+	assert_bool(result.ok).override_failure_message(result.error_message).is_true()
+	var warned := result.warnings.any(
+		func(w: String) -> bool: return w.contains("elevation colours")
+	)
+	assert_bool(warned).is_true()
+	var folder := OUTPUT_DIR.path_join("no_imagery/terrain")
+	assert_bool(FileAccess.file_exists(folder.path_join("chunk_000_000.res"))).is_false()
+	var scene := auto_free((load(result.scene_path) as PackedScene).instantiate()) as Node
+	var chunk := scene.get_node("Terrain/Chunk_000_000") as MeshInstance3D
+	var mat := chunk.get_surface_override_material(0) as StandardMaterial3D
+	assert_bool(mat.vertex_color_use_as_albedo).is_true()
+	var arrays := chunk.mesh.surface_get_arrays(0)
+	assert_int((arrays[Mesh.ARRAY_COLOR] as PackedColorArray).size()).is_greater(0)
+
+
 func test_build_nodes_in_memory() -> void:
 	var result := GwImportResult.new()
 	var root := await GwWorldBuilder.new().build_nodes(_request("memory"), result)

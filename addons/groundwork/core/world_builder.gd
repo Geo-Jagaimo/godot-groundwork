@@ -249,14 +249,40 @@ func _generate_with(
 		)
 	)
 
-	# 4. Chunk meshes and collision heights.
+	# 4. Imagery tiles, before the meshes: without any imagery the terrain gets
+	# elevation colours instead.
+	var bytes_by_tile := {}
+	if req.imagery_provider != null:
+		var img_tiles := plan.imagery_tile_list()
+		_emit("imagery_tiles", 0, img_tiles.size())
+		var img_fetched: Dictionary = await fetcher.fetch_tiles(
+			req.imagery_provider, img_tiles, token, _on_fetch_progress.bind("imagery_tiles")
+		)
+		if img_fetched["cancelled"] or token.is_cancelled():
+			return null
+		for t: Vector3i in img_fetched["data"]:
+			bytes_by_tile[Vector2i(t.x, t.y)] = img_fetched["data"][t]
+		var img_missing: int = img_fetched["missing"].size() + img_fetched["failed"].size()
+		if bytes_by_tile.is_empty():
+			result.warnings.append(
+				(
+					"No imagery available from %s; the terrain uses elevation colours instead."
+					% req.imagery_provider.get_label()
+				)
+			)
+		elif img_missing > 0:
+			result.warnings.append(
+				"%d of %d imagery tiles were unavailable." % [img_missing, img_tiles.size()]
+			)
+
+	# 5. Chunk meshes and collision heights.
 	var grid := GwTerrainChunkBuilder.chunk_grid(hf, req.chunk_size)
 	for cz in grid.y:
 		for cx in grid.x:
 			data.cells.append(GwTerrainChunkBuilder.chunk_cells(hf, req.chunk_size, cx, cz))
 			data.names.append("chunk_%03d_%03d" % [cx, cz])
 	var cells := data.cells
-	var colors := req.imagery_provider == null
+	var colors := bytes_by_tile.is_empty()
 	var collision := req.generate_collision
 	var built := await _run_parallel(
 		"meshes",
@@ -287,30 +313,8 @@ func _generate_with(
 		if i % MAIN_THREAD_BATCH == MAIN_THREAD_BATCH - 1:
 			await tree.process_frame
 
-	# 5. Imagery.
-	if req.imagery_provider != null:
-		var img_tiles := plan.imagery_tile_list()
-		_emit("imagery_tiles", 0, img_tiles.size())
-		var img_fetched: Dictionary = await fetcher.fetch_tiles(
-			req.imagery_provider, img_tiles, token, _on_fetch_progress.bind("imagery_tiles")
-		)
-		if img_fetched["cancelled"] or token.is_cancelled():
-			return null
-		var bytes_by_tile := {}
-		for t: Vector3i in img_fetched["data"]:
-			bytes_by_tile[Vector2i(t.x, t.y)] = img_fetched["data"][t]
-		var img_missing: int = img_fetched["missing"].size() + img_fetched["failed"].size()
-		if bytes_by_tile.is_empty():
-			result.warnings.append(
-				(
-					"No imagery available from %s; the terrain is untextured."
-					% req.imagery_provider.get_label()
-				)
-			)
-		elif img_missing > 0:
-			result.warnings.append(
-				"%d of %d imagery tiles were unavailable." % [img_missing, img_tiles.size()]
-			)
+	# 6. Chunk textures.
+	if not bytes_by_tile.is_empty():
 		var compositor := plan.create_compositor()
 		var composed := await _run_parallel(
 			"textures",
@@ -324,7 +328,7 @@ func _generate_with(
 			data.uv_scales.append(c["uv_scale"])
 			data.uv_offsets.append(c["uv_offset"])
 
-	# 6. OpenStreetMap buildings and roads (failures only produce warnings).
+	# 7. OpenStreetMap buildings and roads (failures only produce warnings).
 	data.georef = plan.create_geo_reference()
 	data.georef.heightfield = hf
 	if req.includes_osm():
