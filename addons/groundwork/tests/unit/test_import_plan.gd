@@ -33,6 +33,15 @@ func test_valid_plan() -> void:
 	assert_int(plan.imagery_zoom).is_equal(-1)
 
 
+func test_bbox_samples_inside_grid() -> void:
+	var plan := GwImportPlan.from_request(_request(3000.0))
+	var cells := plan.bbox_samples()
+	var raw := Rect2i(0, 0, plan.elevation_tiles.size.x * 256, plan.elevation_tiles.size.y * 256)
+	assert_bool(raw.encloses(cells)).is_true()
+	# ~3 km at ~7.8 m per sample.
+	assert_int(cells.size.x).is_between(380, 390)
+
+
 func test_grid_covers_bbox() -> void:
 	var req := _request(3000.0)
 	var plan := GwImportPlan.from_request(req)

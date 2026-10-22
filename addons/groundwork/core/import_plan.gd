@@ -92,6 +92,19 @@ func create_geo_reference() -> GwGeoReference:
 	return g
 
 
+## Heightfield samples (before decimation) that lie inside the selected area.
+func bbox_samples() -> Rect2i:
+	var g := create_geo_reference()
+	var nw := g.to_local(request.bbox.north, request.bbox.west)
+	var se := g.to_local(request.bbox.south, request.bbox.east)
+	var raw_cell := cell_size_m / decimation
+	var c0 := floori((nw.x - grid_origin.x) / raw_cell)
+	var r0 := floori((nw.z - grid_origin.y) / raw_cell)
+	var c1 := ceili((se.x - grid_origin.x) / raw_cell)
+	var r1 := ceili((se.z - grid_origin.y) / raw_cell)
+	return Rect2i(c0, r0, c1 - c0 + 1, r1 - r0 + 1)
+
+
 func create_compositor() -> GwImageryCompositor:
 	return GwImageryCompositor.create(elevation_tiles.position, imagery_zoom_scale(), decimation)
 

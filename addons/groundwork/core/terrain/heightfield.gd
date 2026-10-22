@@ -108,9 +108,10 @@ func compute_min_max() -> void:
 
 ## Fills NoData by repeatedly averaging valid 4-neighbours, up to
 ## [param max_iterations] passes; anything left is set to the minimum valid
-## height. Returns the number of samples that needed the fallback, or -1 if the
-## grid has no valid data at all.
-func fill_nodata(max_iterations: int = 32) -> int:
+## height inside [param fallback_cells] (sample indices; the whole grid when
+## empty or without valid data). Returns the number of samples that needed the
+## fallback, or -1 if the grid has no valid data at all.
+func fill_nodata(max_iterations: int = 32, fallback_cells: Rect2i = Rect2i()) -> int:
 	var pending := PackedInt32Array()
 	for i in data.size():
 		if is_nan(data[i]):
@@ -151,10 +152,23 @@ func fill_nodata(max_iterations: int = 32) -> int:
 		pending = next
 	if pending.is_empty():
 		return 0
-	compute_min_max()
+	var fill := _min_valid(fallback_cells.intersection(Rect2i(0, 0, width, height)))
+	if is_nan(fill):
+		compute_min_max()
+		fill = min_height
 	for i in pending:
-		data[i] = min_height
+		data[i] = fill
 	return pending.size()
+
+
+func _min_valid(cells: Rect2i) -> float:
+	var lo := INF
+	for r in range(cells.position.y, cells.end.y):
+		for c in range(cells.position.x, cells.end.x):
+			var h := data[r * width + c]
+			if not is_nan(h):
+				lo = minf(lo, h)
+	return lo if lo != INF else NAN
 
 
 ## Every [param step]-th sample in both directions. Origin is unchanged. When

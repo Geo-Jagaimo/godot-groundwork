@@ -219,6 +219,7 @@ func _generate_with(
 	# 3. Heightfield: stitch, fill NoData, decimate.
 	var raw_cell := plan.cell_size_m / plan.decimation
 	var step := plan.decimation
+	var bbox_samples := plan.bbox_samples()
 	var hf_results := await _run_parallel(
 		"heightfield",
 		1,
@@ -227,7 +228,7 @@ func _generate_with(
 				plan.elevation_tiles, by_tile, raw_cell, plan.grid_origin
 			)
 			var nodata := hf.count_nodata()
-			var fallback := hf.fill_nodata()
+			var fallback := hf.fill_nodata(32, bbox_samples)
 			hf = hf.decimated(step)
 			hf.compute_min_max()
 			return {"heightfield": hf, "nodata": nodata, "fallback": fallback}
@@ -243,7 +244,10 @@ func _generate_with(
 	if hf_info["nodata"] > 0:
 		var msg := "%d NoData samples were interpolated." % hf_info["nodata"]
 		if hf_info["fallback"] > 0:
-			msg += " %d far from valid data were set to the minimum height." % hf_info["fallback"]
+			msg += (
+				" %d far from valid data were set to the lowest height in the area."
+				% hf_info["fallback"]
+			)
 		result.warnings.append(msg)
 	logger.info(
 		(

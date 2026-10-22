@@ -56,6 +56,17 @@ func test_fill_nodata_fallback_to_min() -> void:
 	assert_int(hf.count_nodata()).is_equal(0)
 
 
+func test_fill_nodata_fallback_uses_region_minimum() -> void:
+	# A deep value outside the region must not be used to fill holes inside it.
+	var hf := GwHeightfield.create(64, 1, 1.0, Vector2.ZERO)
+	hf.data.fill(NAN)
+	hf.set_height(0, 0, -1000.0)
+	hf.set_height(40, 0, 20.0)
+	hf.set_height(41, 0, 25.0)
+	hf.fill_nodata(1, Rect2i(30, 0, 20, 1))
+	assert_float(hf.get_height(60, 0)).is_equal(20.0)
+
+
 func test_fill_nodata_all_missing() -> void:
 	var hf := GwHeightfield.create(4, 4, 1.0, Vector2.ZERO)
 	hf.data.fill(NAN)
