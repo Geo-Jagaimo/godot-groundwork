@@ -32,7 +32,9 @@ var tool := BBoxTool.new()
 
 var _fetcher: GwTileFetcher
 var _textures := {}
-var _texture_order: Array[String] = []
+## key -> draw count when the texture was last drawn (directly or as a fallback).
+var _last_used := {}
+var _draw_count := 0
 var _pending := {}
 ## key -> time (msec) after which the tile may be requested again.
 var _unavailable := {}
@@ -70,7 +72,7 @@ func set_basemap(value: GwTileProvider) -> void:
 	if _fetcher != null:
 		_fetcher.cancel_all()
 	_textures.clear()
-	_texture_order.clear()
+	_last_used.clear()
 	_pending.clear()
 	_unavailable.clear()
 	queue_redraw()
@@ -135,6 +137,7 @@ func screen_to_norm(p: Vector2) -> PackedFloat64Array:
 
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.85, 0.86, 0.84))
+	_draw_count += 1
 	_wanted.clear()
 	_wanted_keys.clear()
 	if basemap != null:
@@ -168,6 +171,7 @@ func _draw_tiles() -> void:
 			var tex: Texture2D = _textures.get(key)
 			if tex != null:
 				draw_texture_rect(tex, rect, false)
+				_last_used[key] = _draw_count
 				continue
 			if Time.get_ticks_msec() >= _unavailable.get(key, 0):
 				_wanted.append(Vector3i(wx, ty, zi))
@@ -181,9 +185,11 @@ func _draw_fallback(z: int, x: int, y: int, rect: Rect2) -> void:
 		var pz := z - dz
 		if pz < basemap.min_zoom:
 			return
-		var tex: Texture2D = _textures.get(_key(pz, x >> dz, y >> dz))
+		var parent := _key(pz, x >> dz, y >> dz)
+		var tex: Texture2D = _textures.get(parent)
 		if tex == null:
 			continue
+		_last_used[parent] = _draw_count
 		var s := TILE / (1 << dz)
 		var src := Rect2((x - ((x >> dz) << dz)) * s, (y - ((y >> dz) << dz)) * s, s, s)
 		draw_texture_rect_region(tex, rect, src)
@@ -263,15 +269,17 @@ func _on_tile(tile: Vector3i, status: int, data: PackedByteArray, provider: GwTi
 
 func _store_texture(key: String, tex: Texture2D) -> void:
 	_textures[key] = tex
-	_texture_order.append(key)
-	var i := 0
-	while _textures.size() > MAX_TEXTURES and i < _texture_order.size():
-		var old := _texture_order[i]
-		if _wanted_keys.has(old):
-			i += 1
-			continue
+	_last_used[key] = _draw_count
+	if _textures.size() <= MAX_TEXTURES:
+		return
+	# Evict the least recently drawn tiles, never those on screen right now.
+	var keys := _textures.keys()
+	keys.sort_custom(func(a: String, b: String) -> bool: return _last_used[a] < _last_used[b])
+	for old: String in keys:
+		if _textures.size() <= MAX_TEXTURES or _last_used[old] >= _draw_count:
+			break
 		_textures.erase(old)
-		_texture_order.remove_at(i)
+		_last_used.erase(old)
 
 
 func _key(z: int, x: int, y: int) -> String:
