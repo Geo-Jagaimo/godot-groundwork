@@ -67,3 +67,29 @@ func test_tile_range_exclusive_edges() -> void:
 	)
 	var r := GwTileMath.tile_range(b, 9)
 	assert_that(r).is_equal(Rect2i(100, 200, 1, 1))
+
+
+func test_tile_range_edges_just_inside_boundaries() -> void:
+	# Exact edges of tiles 14540..14542 x 6440..6442 at z14. The south edge comes
+	# out ~1e-12 tile north of the boundary; it must not lose the last row.
+	var b := GwGeoBBox.from_sw_ne(
+		GwTileMath.tile_y_to_lat(6443, 14),
+		GwTileMath.tile_x_to_lon(14540, 14),
+		GwTileMath.tile_y_to_lat(6440, 14),
+		GwTileMath.tile_x_to_lon(14543, 14)
+	)
+	assert_that(GwTileMath.tile_range(b, 14)).is_equal(Rect2i(14540, 6440, 3, 3))
+	# The same after the text round trip import_request.tres goes through.
+	var copy := GwGeoBBox.new()
+	copy.bounds_text = b.bounds_text
+	assert_that(GwTileMath.tile_range(copy, 14)).is_equal(Rect2i(14540, 6440, 3, 3))
+	# The 1/4 of the edge tile is still included.
+	b.east = GwTileMath.tile_x_to_lon(14543.25, 14)
+	assert_int(GwTileMath.tile_range(b, 14).size.x).is_equal(4)
+
+
+func test_tile_range_world_edge() -> void:
+	var b := GwGeoBBox.from_sw_ne(10.0, 179.5, 10.5, 180.0)
+	var r := GwTileMath.tile_range(b, 12)
+	assert_int(r.end.x).is_equal(4096)
+	assert_int(r.position.x).is_equal(GwTileMath.lat_lon_to_tile(10.5, 179.5, 12).x)

@@ -94,18 +94,15 @@ static func resolution_to_zoom(
 
 ## Tiles covering the bbox at zoom [param z], as Rect2i(x_min, y_min, cols, rows).
 static func tile_range(bbox: GwGeoBBox, z: int) -> Rect2i:
-	var nw := lat_lon_to_tile(bbox.north, bbox.west, z)
-	var se := lat_lon_to_tile(bbox.south, bbox.east, z)
-	# The east/south edges are exclusive: a bbox ending exactly on a tile
-	# boundary must not pull in the next tile. (Absolute tolerance:
-	# is_equal_approx() is relative and far too loose for tile numbers.)
-	var east_x := lon_to_tile_x(bbox.east, z)
-	if absf(east_x - roundf(east_x)) < 1e-6 and se.x > nw.x:
-		se.x -= 1
-	var south_y := lat_to_tile_y(bbox.south, z)
-	if absf(south_y - roundf(south_y)) < 1e-6 and se.y > nw.y:
-		se.y -= 1
-	return Rect2i(nw.x, nw.y, se.x - nw.x + 1, se.y - nw.y + 1)
+	var n := 1 << z
+	# Edges within 1e-6 tile of a boundary are snapped to it, whichever side the
+	# floating-point error put them on: the west / north edge then starts at that
+	# tile and the east / south edge (exclusive) stops before it.
+	var x0 := clampi(floori(lon_to_tile_x(bbox.west, z) + 1e-6), 0, n - 1)
+	var y0 := clampi(floori(lat_to_tile_y(bbox.north, z) + 1e-6), 0, n - 1)
+	var x1 := clampi(ceili(lon_to_tile_x(bbox.east, z) - 1e-6) - 1, x0, n - 1)
+	var y1 := clampi(ceili(lat_to_tile_y(bbox.south, z) - 1e-6) - 1, y0, n - 1)
+	return Rect2i(x0, y0, x1 - x0 + 1, y1 - y0 + 1)
 
 
 ## All tiles of a range as Vector3i(x, y, z), row by row.
