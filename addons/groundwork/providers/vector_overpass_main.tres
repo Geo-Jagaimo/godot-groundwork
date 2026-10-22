@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="GwTileProvider" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/groundwork/core/tile_provider.gd" id="1_provider"]
+
+[resource]
+script = ExtResource("1_provider")
+id = "overpass_main"
+display_name = "Overpass API (overpass-api.de)"
+kind = 2
+url_template = "https://overpass-api.de/api/interpreter"
+min_zoom = 0
+max_zoom = 0
+attribution = "© OpenStreetMap contributors. OpenStreetMap data is available under the Open Database License (ODbL): https://www.openstreetmap.org/copyright
+The buildings and roads in this scene are a Produced Work derived from OpenStreetMap data. Show this attribution where the scene is used publicly (for example on a splash screen or in the credits)."
+attribution_short = "© OpenStreetMap contributors (ODbL)"
+terms_url = "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html"
+cache_ttl_days = 7
+avg_tile_kb = 0.0
