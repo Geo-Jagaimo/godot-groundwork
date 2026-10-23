@@ -319,5 +319,23 @@ static func _is_retryable(result: int, code: int) -> bool:
 	return code == 429 or code >= 500 or code == 0
 
 
+## A User-Agent that names [param app] (e.g. a game) before this addon, so data
+## providers can tell apps apart. Characters not allowed in a product token
+## become "-"; if nothing is left, the addon's own User-Agent is returned.
+static func user_agent_for(app: String, version: String = "") -> String:
+	var product := _product_token(app)
+	if product.is_empty():
+		return DEFAULT_USER_AGENT
+	var v := _product_token(version)
+	if not v.is_empty():
+		product += "/" + v
+	return product + " " + DEFAULT_USER_AGENT
+
+
+static func _product_token(text: String) -> String:
+	var re := RegEx.create_from_string("[^A-Za-z0-9!#$%&'*+.^_`|~-]+")
+	return re.sub(text, "-", true).lstrip("-").rstrip("-")
+
+
 static func _tree() -> SceneTree:
 	return Engine.get_main_loop() as SceneTree

@@ -16,6 +16,9 @@ signal finished(result: GwImportResult)
 @export var request: GwImportRequest
 ## Build as soon as the node is ready (only in the running game, not the editor).
 @export var build_on_ready := false
+## Identifies your game to the data providers, e.g.
+## "MyGame/1.2 (+https://example.com)". Empty uses the project's name and version.
+@export var user_agent := ""
 
 ## The last scene built, or null.
 var scene_root: GwSceneRoot
@@ -52,6 +55,7 @@ func build() -> GwImportResult:
 	cancel()
 	var builder := GwWorldBuilder.new()
 	builder.host_node = self
+	builder.user_agent = get_user_agent()
 	builder.progress.connect(func(s: String, d: int, t: int) -> void: progress.emit(s, d, t))
 	_builder = builder
 	var result := GwImportResult.new()
@@ -71,6 +75,16 @@ func build() -> GwImportResult:
 		add_child(root)
 	finished.emit(result)
 	return result
+
+
+## The User-Agent sent with every download.
+func get_user_agent() -> String:
+	if not user_agent.is_empty():
+		return user_agent
+	return GwTileFetcher.user_agent_for(
+		str(ProjectSettings.get_setting("application/config/name", "")),
+		str(ProjectSettings.get_setting("application/config/version", ""))
+	)
 
 
 func is_building() -> bool:

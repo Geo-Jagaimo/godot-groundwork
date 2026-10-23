@@ -33,6 +33,7 @@ func generate(
 	var client := GwOverpassClient.new()
 	if builder.cache != null:
 		client.cache = builder.cache
+	client.user_agent = builder.user_agent
 	var query := GwOverpassClient.build_query(
 		req.bbox,
 		req.include_buildings,

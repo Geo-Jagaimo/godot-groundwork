@@ -446,6 +446,19 @@ func test_request_around() -> void:
 	assert_bool(GwImportPlan.from_request(req).is_valid()).is_true()
 
 
+func test_user_agent_names_the_app() -> void:
+	var ua := GwTileFetcher.user_agent_for("Shibuya Walk (demo)", "1.2")
+	assert_str(ua).is_equal("Shibuya-Walk-demo/1.2 " + GwTileFetcher.DEFAULT_USER_AGENT)
+	assert_str(GwTileFetcher.user_agent_for("渋谷さんぽ")).is_equal(GwTileFetcher.DEFAULT_USER_AGENT)
+	# Without a setting the loader names the project ("Godot-Groundwork (dev)").
+	var loader := GwTerrainLoader.new()
+	assert_str(loader.get_user_agent()).starts_with("Godot-Groundwork-dev")
+	assert_str(loader.get_user_agent()).ends_with(GwTileFetcher.DEFAULT_USER_AGENT)
+	loader.user_agent = "MyGame/2.0"
+	assert_str(loader.get_user_agent()).is_equal("MyGame/2.0")
+	loader.free()
+
+
 func test_lod_can_be_turned_off() -> void:
 	var req := _request("no_lod")
 	req.lod_levels = 0

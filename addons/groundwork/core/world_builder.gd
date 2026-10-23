@@ -69,6 +69,9 @@ var file_importer: Callable
 ## provider id -> API key.
 var api_keys: Dictionary = {}
 var concurrency := 6
+## Sent with every download. Apps that download at runtime should name
+## themselves (see [method GwTileFetcher.user_agent_for]).
+var user_agent := GwTileFetcher.DEFAULT_USER_AGENT
 var cache: GwTileCache
 ## Node that HTTPRequest children are added to (defaults to the tree root).
 var host_node: Node
@@ -152,6 +155,7 @@ func _generate(plan: GwImportPlan, result: GwImportResult) -> BuildData:
 	var req := plan.request
 	var fetcher := GwTileFetcher.new(host_node, cache)
 	fetcher.concurrency = concurrency
+	fetcher.user_agent = user_agent
 	fetcher.api_keys = api_keys
 	var data := await _generate_with(fetcher, plan, result)
 	fetcher.dispose()
