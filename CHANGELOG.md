@@ -13,6 +13,13 @@ LOD, collision and aerial imagery, OpenStreetMap buildings, roads and water, glT
 and runtime loading. Versions 0.1.0 to 0.3.0 were development milestones and were not
 released on their own.
 
+### Added
+
+- Imports download at most 5,000 tiles (with a warning above 2,000), to spare the
+  shared tile servers.
+- `GwWorldBuilder.user_agent` and `GwTerrainLoader.user_agent`. By default the loader
+  names the game (project name and version) in the User-Agent of its downloads.
+
 ## [0.3.0] - unreleased
 
 Distance LOD, courtyards, water, glTF export and runtime loading.

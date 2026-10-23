@@ -101,6 +101,9 @@ var h := world.sample_elevation(Vector2(pos.x, pos.z))
 一番近い低ズームのタイルから切り出して補います。それでも欠ける部分は補間します。
 512 px タイルのプロバイダ（`GwTileProvider.tile_size`）は解像度を落とさずに使います。
 
+公開サーバーへの負荷を抑えるため、1 回の取り込みで取得するタイルは標高と航空写真を合わせて 5,000 枚までです
+（2,000 枚を超えると警告が出ます）。広い範囲は分けて取り込むか、解像度や航空写真の細かさを下げてください。
+
 全球の航空写真プリセットは、ゲームへの組み込み可否を規約で確認できたものだけを同梱する方針のため、
 まだ含めていません。独自のプロバイダは `GwTileProvider` リソース（URL テンプレート
 `https://…/{z}/{x}/{y}.png`、ズーム範囲、帰属表示）を `res://groundwork_providers/` に置けば
@@ -162,7 +165,7 @@ scene.free()
 
 ```gdscript
 var loader := GwTerrainLoader.new()
-loader.request = GwTerrainLoader.request_around(35.3606, 138.7274, 2000.0, "mapterhorn")
+loader.request = GwTerrainLoader.request_around(35.3606, 138.7274, 2000.0)
 add_child(loader)
 var result: GwImportResult = await loader.build()
 if result.ok:
@@ -170,6 +173,14 @@ if result.ok:
 ```
 
 ゲーム内でデータの出典（`loader.scene_root.get_attribution()`）を表示してください。
+
+この場合、タイル（有効にすれば OpenStreetMap のデータも）はプレイヤーそれぞれのゲームが直接ダウンロードします。
+プリセットのプロバイダは、ボランティアや支援企業、行政が運営する無料の公開サーバーで、利用規約ではプレイヤー全員分の
+通信が合算されます。多くの人が遊ぶゲームでは、エディタで取り込んだシーンを同梱するか、プロバイダを自前のタイルサーバー・
+Overpass サーバーに向けてください。
+
+通信には、プロジェクト名とバージョン（`application/config/name`・`application/config/version`）から作った
+User-Agent が付きます。連絡先も含めたい場合は `loader.user_agent` を設定してください（例: `"MyGame/1.2 (+https://example.com)"`）。
 
 ## 設定
 

@@ -112,6 +112,10 @@ partial coverage), the tile is cut from the closest lower zoom level instead; an
 still missing is interpolated. Providers with 512 px tiles (`GwTileProvider.tile_size`)
 are used at full resolution.
 
+To spare the shared servers, one import downloads at most 5,000 tiles (elevation and
+imagery together; you are warned above 2,000). Split large areas, or lower the
+resolution or the imagery detail.
+
 A global imagery preset is not included yet: we only ship sources whose terms clearly
 allow embedding in games. You can add your own provider by saving a `GwTileProvider`
 resource (URL template `https://…/{z}/{x}/{y}.png`, zoom range, attribution) in
@@ -177,7 +181,7 @@ cached in `user://`). See `demo/runtime.tscn`.
 
 ```gdscript
 var loader := GwTerrainLoader.new()
-loader.request = GwTerrainLoader.request_around(35.3606, 138.7274, 2000.0, "mapterhorn")
+loader.request = GwTerrainLoader.request_around(35.3606, 138.7274, 2000.0)
 add_child(loader)
 var result: GwImportResult = await loader.build()
 if result.ok:
@@ -185,6 +189,16 @@ if result.ok:
 ```
 
 Show the data attribution (`loader.scene_root.get_attribution()`) in your game.
+
+Each player's game then downloads the tiles itself, and OpenStreetMap data too if you
+turn it on. The preset providers are free public servers run by volunteers, sponsors or
+government agencies, and their usage policies count the traffic of all your players
+together. For a game that many people will play, import the places in the editor and
+ship the scenes, or point the providers at your own tile and Overpass servers.
+
+Downloads identify your game with a User-Agent made from the project name and version
+(`application/config/name` and `application/config/version`). Set `loader.user_agent`
+to add a contact address, e.g. `"MyGame/1.2 (+https://example.com)"`.
 
 ## Settings
 
