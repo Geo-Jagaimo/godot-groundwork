@@ -165,3 +165,24 @@ func test_512_px_elevation_provider() -> void:
 	var g := plan.create_geo_reference()
 	var sw := g.to_local(req.bbox.south, req.bbox.west)
 	assert_float(plan.grid_origin.x).is_less_equal(sw.x)
+
+
+func test_tile_limit() -> void:
+	var req := _request(25000.0)
+	req.imagery_provider = _provider(GwTileProvider.Kind.IMAGERY, 18)
+	req.imagery_zoom_offset = 3
+	# Local providers (files) put no load on a server and are not limited.
+	assert_bool(GwImportPlan.from_request(req).is_valid()).is_true()
+	req.imagery_provider.url_template = "https://example.invalid/{z}/{x}/{y}.png"
+	var plan := GwImportPlan.from_request(req)
+	assert_int(plan.remote_tile_count()).is_greater(GwImportPlan.MAX_TILES)
+	assert_bool(plan.is_valid()).is_false()
+	assert_str(plan.errors[0]).contains("tiles")
+	req.imagery_zoom_offset = 2
+	plan = GwImportPlan.from_request(req)
+	assert_int(plan.remote_tile_count()).is_between(
+		GwImportPlan.WARN_TILES + 1, GwImportPlan.MAX_TILES
+	)
+	assert_bool(plan.is_valid()).is_true()
+	var warned := Array(plan.warnings).any(func(w: String) -> bool: return w.contains("tiles"))
+	assert_bool(warned).is_true()

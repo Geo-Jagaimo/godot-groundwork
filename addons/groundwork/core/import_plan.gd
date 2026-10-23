@@ -13,6 +13,10 @@ const WARN_TRIANGLES := 10000000
 const MAX_OSM_AREA_KM2 := 25.0
 ## Hard limit on heightfield samples per side (memory guard).
 const MAX_GRID_SIDE := 16384
+## Tiles one import may download (elevation + imagery). Public tile servers are
+## shared, so large areas should be split up or imported with less detail.
+const WARN_TILES := 2000
+const MAX_TILES := 5000
 
 var request: GwImportRequest
 var errors := PackedStringArray()
@@ -257,8 +261,36 @@ func _compute(api_keys: Dictionary) -> void:
 				)
 			)
 
+	_check_tile_count()
 	if req.includes_osm():
 		_check_osm()
+
+
+## Tiles to download from servers; local providers (files) do not count.
+func remote_tile_count() -> int:
+	var n := 0
+	if not request.elevation_provider.is_local():
+		n += elevation_tiles.get_area()
+	if imagery_zoom >= 0 and not request.imagery_provider.is_local():
+		n += imagery_tiles.get_area()
+	return n
+
+
+func _check_tile_count() -> void:
+	var n := remote_tile_count()
+	if n > MAX_TILES:
+		errors.append(
+			(
+				(
+					"This import needs %d tiles; the limit is %d to spare the shared tile servers."
+					+ " Select a smaller area, a coarser resolution or less imagery detail."
+				)
+				% [n, MAX_TILES]
+			)
+		)
+	elif n > WARN_TILES:
+		var warn := "%d tiles to download from shared servers: use only the detail you need."
+		warnings.append(warn % n)
 
 
 func _check_osm() -> void:
