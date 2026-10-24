@@ -14,5 +14,7 @@
 /project.godot export-ignore
 /addons/groundwork/tests export-ignore
 /CHANGELOG.md export-ignore
+/release-please-config.json export-ignore
+/.release-please-manifest.json export-ignore
 /README.ja.md export-ignore
 /docs export-ignore

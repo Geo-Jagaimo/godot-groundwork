@@ -241,6 +241,11 @@ Lint and format with [gdtoolkit](https://github.com/Scony/godot-gdscript-toolkit
 After `git config core.hooksPath tools/hooks`, both run on the staged files before each
 commit.
 
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
+(`feat:`, `fix:`, `docs:`, …). [release-please](https://github.com/googleapis/release-please)
+keeps a release PR open that bumps the version and adds `feat` and `fix` commits to
+`CHANGELOG.md`; merging it tags and publishes the release.
+
 ## License
 
 Code: see [LICENSE](LICENSE). Geographic data in generated output is licensed by its

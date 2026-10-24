@@ -218,6 +218,9 @@ Lint / format は [gdtoolkit](https://github.com/Scony/godot-gdscript-toolkit) 4
 `gdlint addons/groundwork demo tools`、`gdformat --check addons/groundwork demo tools`。
 `git config core.hooksPath tools/hooks` を実行しておくと、コミットのたびにステージしたファイルに対して両方が走ります。
 
+コミットメッセージは [Conventional Commits](https://www.conventionalcommits.org/)（`feat:`、`fix:`、`docs:` など）で書きます。
+[release-please](https://github.com/googleapis/release-please) がリリース PR を開いたまま保ち、バージョンを上げて `feat` と `fix` のコミットを `CHANGELOG.md` に追記します。この PR をマージするとタグとリリースが作られます。
+
 ## ライセンス
 
 コード: [LICENSE](LICENSE) を参照。生成物に含まれる地理データは各プロバイダのライセンスに従います（取り込みごとの `ATTRIBUTION.md` を参照）。

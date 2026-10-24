@@ -1,15 +1,9 @@
 # Changelog
 
-All notable changes to this project are documented here.
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
-project uses [Semantic Versioning](https://semver.org/).
-
-## [Unreleased]
-
-### Fixed
-
-- The 1.0.1 release still called itself 1.0.0 in `plugin.cfg` and in the User-Agent of
-  its downloads.
+All notable changes to this project are documented here. The project uses
+[Semantic Versioning](https://semver.org/). Releases after 1.0.1 are written by
+release-please from [Conventional Commits](https://www.conventionalcommits.org/);
+1.0.1 and earlier follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [1.0.1] - 2026-10-23
 
@@ -119,6 +113,5 @@ First version: real-world terrain from tile services, generated in the editor.
 - Demo project with a first-person controller.
 - gdUnit4 test suite (offline, synthetic tiles) and CI.
 
-[Unreleased]: https://github.com/Geo-Jagaimo/godot-groundwork/compare/1.0.1...HEAD
 [1.0.1]: https://github.com/Geo-Jagaimo/godot-groundwork/compare/1.0.0...1.0.1
 [1.0.0]: https://github.com/Geo-Jagaimo/godot-groundwork/releases/tag/1.0.0
