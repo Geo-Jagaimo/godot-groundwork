@@ -6,12 +6,12 @@ project uses [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-10-22
+### Fixed
 
-First public release, with everything listed below: real-world terrain with distance
-LOD, collision and aerial imagery, OpenStreetMap buildings, roads and water, glTF export
-and runtime loading. Versions 0.1.0 to 0.3.0 were development milestones and were not
-released on their own.
+- The 1.0.1 release still called itself 1.0.0 in `plugin.cfg` and in the User-Agent of
+  its downloads.
+
+## [1.0.1] - 2026-10-23
 
 ### Added
 
@@ -19,6 +19,13 @@ released on their own.
   shared tile servers.
 - `GwWorldBuilder.user_agent` and `GwTerrainLoader.user_agent`. By default the loader
   names the game (project name and version) in the User-Agent of its downloads.
+
+## [1.0.0] - 2026-10-22
+
+First public release, with everything listed below: real-world terrain with distance
+LOD, collision and aerial imagery, OpenStreetMap buildings, roads and water, glTF export
+and runtime loading. Versions 0.1.0 to 0.3.0 were development milestones and were not
+released on their own.
 
 ## [0.3.0] - unreleased
 
@@ -112,5 +119,6 @@ First version: real-world terrain from tile services, generated in the editor.
 - Demo project with a first-person controller.
 - gdUnit4 test suite (offline, synthetic tiles) and CI.
 
-[Unreleased]: https://github.com/Geo-Jagaimo/godot-groundwork/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/Geo-Jagaimo/godot-groundwork/releases/tag/v1.0.0
+[Unreleased]: https://github.com/Geo-Jagaimo/godot-groundwork/compare/1.0.1...HEAD
+[1.0.1]: https://github.com/Geo-Jagaimo/godot-groundwork/compare/1.0.0...1.0.1
+[1.0.0]: https://github.com/Geo-Jagaimo/godot-groundwork/releases/tag/1.0.0
