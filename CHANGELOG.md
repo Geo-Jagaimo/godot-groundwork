@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The project uses
 release-please from [Conventional Commits](https://www.conventionalcommits.org/);
 1.0.1 and earlier follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.2](https://github.com/Geo-Jagaimo/godot-groundwork/compare/1.0.1...1.0.2) (2026-10-24)
+
+
+### Fixed
+
+* Keep plugin.cfg and the User-Agent at the release version ([71279b4](https://github.com/Geo-Jagaimo/godot-groundwork/commit/71279b4baff50b139c398906654d5ba1c3c9b48b))
+
 ## [1.0.1] - 2026-10-23
 
 ### Added
