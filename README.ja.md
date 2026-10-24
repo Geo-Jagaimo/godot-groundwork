@@ -216,6 +216,7 @@ godot --headless --editor --path . -- --groundwork-selftest
 
 Lint / format は [gdtoolkit](https://github.com/Scony/godot-gdscript-toolkit) 4.x を使います：
 `gdlint addons/groundwork demo tools`、`gdformat --check addons/groundwork demo tools`。
+`git config core.hooksPath tools/hooks` を実行しておくと、コミットのたびにステージしたファイルに対して両方が走ります。
 
 ## ライセンス
 

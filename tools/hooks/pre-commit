@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Runs gdlint and gdformat --check on the staged GDScript files, like the CI lint job.
+# Enable with: git config core.hooksPath tools/hooks (skip once with git commit --no-verify).
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+FILES=()
+while IFS= read -r -d '' f; do
+  FILES+=("$f")
+done < <(git diff --cached --name-only --diff-filter=ACMR -z -- 'addons/groundwork/*.gd' 'demo/*.gd' 'tools/*.gd')
+if [ ${#FILES[@]} -eq 0 ]; then
+  exit 0
+fi
+
+WANT="$(sed -n 's/.*gdtoolkit==\([0-9.]*\).*/\1/p' .github/workflows/ci.yaml)"
+if ! command -v gdlint >/dev/null || ! command -v gdformat >/dev/null; then
+  echo "pre-commit: gdtoolkit not found. Install it with: pip install \"gdtoolkit==$WANT\"" >&2
+  exit 1
+fi
+HAVE="$(gdformat --version | awk '{print $2}')"
+if [ "$HAVE" != "$WANT" ]; then
+  echo "pre-commit: gdtoolkit $HAVE is installed but CI uses $WANT; results may differ." >&2
+fi
+
+gdlint "${FILES[@]}"
+if ! gdformat --check "${FILES[@]}"; then
+  echo "pre-commit: run gdformat on the files above and stage them again." >&2
+  exit 1
+fi

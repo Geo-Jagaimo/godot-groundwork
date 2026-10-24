@@ -238,6 +238,8 @@ godot --headless --editor --path . -- --groundwork-selftest
 
 Lint and format with [gdtoolkit](https://github.com/Scony/godot-gdscript-toolkit) 4.x:
 `gdlint addons/groundwork demo tools` and `gdformat --check addons/groundwork demo tools`.
+After `git config core.hooksPath tools/hooks`, both run on the staged files before each
+commit.
 
 ## License
 
